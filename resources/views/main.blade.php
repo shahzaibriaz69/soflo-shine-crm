@@ -66,9 +66,20 @@
 
             <!-- OPERATIONS SECTION -->
             <div class="pt-4 pb-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Operations</div>
-            <a href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
-                <span>💬</span> Requests
+            <a href="{{ route('requests.index') }}"
+                class="flex items-center justify-between px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition">
+                <div class="flex items-center gap-3">
+                    <!-- Icon -->
+                    <span>Requests</span>
+                </div>
+                @php
+                    $sidebarNewCount = \App\Models\RequestQuote::where('badge_status', 'new')->count();
+                @endphp
+                @if($sidebarNewCount > 0)
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-blue-600 text-white rounded-full">
+                        {{ $sidebarNewCount }}
+                    </span>
+                @endif
             </a>
             <a href="#"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">

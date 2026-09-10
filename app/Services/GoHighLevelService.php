@@ -67,7 +67,7 @@ class GoHighLevelService
                     'ghl_id'        => $item->ghl_opportunity_id ?? null,
                     'name'          => $item->name,
                     'description'   => $item->description ?? '',
-                    'stage'         => $item->stage,
+                    'stage'         => $item->stage ?? 'new',
                     'status'        => $item->status ?? 'open',
                     'monetaryValue' => (float) ($item->value ?? 0),
                     'value'         => (float) ($item->value ?? 0),

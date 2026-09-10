@@ -19,7 +19,6 @@ class PipelineController extends Controller
             $activeTab = 'sales';
         }
 
-        // Sales aur Recurring pipelines ko unke stages aur opportunities ke sath fetch karein
         $salesPipelines = Pipeline::where('type', 'sales')->with('stages.opportunities')->get();
         $recurringPipelines = Pipeline::where('type', 'recurring')->with('stages.opportunities')->get();
 
@@ -28,38 +27,39 @@ class PipelineController extends Controller
 
     public function updateStage(Request $request)
     {
-        $validated = $request->validate([
-            'id' => 'required|exists:opportunities,id',
-            'stage_id' => 'required|exists:stages,id',
-        ]);
-
-        $opportunity = Opportunity::findOrFail($validated['id']);
-        $targetStage = Stage::findOrFail($validated['stage_id']);
-
-        abort_unless(
-            $opportunity->pipelineStage?->pipeline_id === $targetStage->pipeline_id,
-            422,
-            'An opportunity can only move within its current pipeline.'
-        );
-
-        DB::transaction(function () use ($opportunity, $targetStage): void {
-            $stageKey = Str::slug($targetStage->name, '_');
-
-            $opportunity->update([
-                'stage_id' => $targetStage->id,
-                'pipeline_id' => $targetStage->pipeline_id,
-                'stage' => $stageKey,
-                'status' => $stageKey === 'won' ? 'won' : 'open',
-                'time_in_stage' => '0m in stage',
+        try {
+            $validated = $request->validate([
+                'id' => 'required|exists:opportunities,id',
+                'stage_id' => 'required|exists:stages,id',
             ]);
-        });
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Stage updated successfully in database!',
-            'received_id' => $opportunity->id,
-            'new_stage_id' => $targetStage->id,
-            'stage' => Str::slug($targetStage->name, '_'),
-        ]);
+            $opportunity = Opportunity::findOrFail($validated['id']);
+            $targetStage = Stage::findOrFail($validated['stage_id']);
+
+            DB::transaction(function () use ($opportunity, $targetStage): void {
+                $stageKey = Str::slug($targetStage->name, '_');
+
+                $opportunity->update([
+                    'stage_id' => $targetStage->id,
+                    'pipeline_id' => $targetStage->pipeline_id,
+                    'stage_location' => $stageKey, // Updated column name for phpMyAdmin
+                    'status' => $stageKey === 'won' ? 'won' : 'open',
+                    'time_in_stage' => '0m in stage',
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stage updated successfully in database!',
+                'received_id' => $opportunity->id,
+                'new_stage_id' => $targetStage->id,
+                'stage_location' => Str::slug($targetStage->name, '_'),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

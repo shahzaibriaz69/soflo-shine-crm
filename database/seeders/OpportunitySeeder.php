@@ -9,7 +9,6 @@ class OpportunitySeeder extends Seeder
 {
     public function run(): void
     {
-        // Foreign key constraints ki wajah se pehle truncate ya delete karein
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('opportunities')->truncate();
         DB::table('stages')->truncate();
@@ -49,12 +48,13 @@ class OpportunitySeeder extends Seeder
             'renewal_due' => DB::table('stages')->insertGetId(['pipeline_id' => $recurringPipelineId, 'name' => 'Renewal Due', 'order' => 4, 'created_at' => now(), 'updated_at' => now()]),
         ];
 
-        // 4. Insert Opportunities for Sales & Recurring Pipelines
+        // 4. Insert Opportunities with explicit 'stage_location' text columns
         DB::table('opportunities')->insert([
             // Sales Pipeline Opportunities
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['new'],
+                'stage_location' => 'new',
                 'ghl_opportunity_id' => 'ghl_opt_1001',
                 'name' => 'Ashley Nguyen',
                 'description' => 'Full detail – Tesla Model Y · Instagram DM',
@@ -66,6 +66,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['new'],
+                'stage_location' => 'new',
                 'ghl_opportunity_id' => 'ghl_opt_1002',
                 'name' => 'Devon Pierce',
                 'description' => 'Exterior + ceramic – F-150 · web form',
@@ -77,6 +78,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['contacted'],
+                'stage_location' => 'contacted',
                 'ghl_opportunity_id' => 'ghl_opt_1003',
                 'name' => 'Camila Ortiz',
                 'description' => 'Interior detail – 2023 Civic',
@@ -88,6 +90,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['quote_sent'],
+                'stage_location' => 'quote_sent',
                 'ghl_opportunity_id' => 'ghl_opt_1004',
                 'name' => 'James Whitfield',
                 'description' => 'Full detail + ceramic – BMW X5',
@@ -99,6 +102,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['quote_sent'],
+                'stage_location' => 'quote_sent',
                 'ghl_opportunity_id' => 'ghl_opt_1005',
                 'name' => 'Harbor Point Auto Group',
                 'description' => 'Lot detail – 8 units',
@@ -110,6 +114,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['follow_up'],
+                'stage_location' => 'follow_up',
                 'ghl_opportunity_id' => 'ghl_opt_1006',
                 'name' => 'Marcus Webb',
                 'description' => 'Express wash – Tahoe · sent 1d ago',
@@ -121,6 +126,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['scheduled'],
+                'stage_location' => 'scheduled',
                 'ghl_opportunity_id' => 'ghl_opt_1007',
                 'name' => 'Coastal Fleet Rentals',
                 'description' => 'Quarterly fleet wash – 8 vans',
@@ -132,6 +138,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $salesPipelineId,
                 'stage_id' => $salesStages['won'],
+                'stage_location' => 'won',
                 'ghl_opportunity_id' => 'ghl_opt_1008',
                 'name' => 'Maria Delgado',
                 'description' => 'Monthly maintenance plan – signed',
@@ -141,10 +148,11 @@ class OpportunitySeeder extends Seeder
                 'updated_at' => now(),
             ],
 
-            // Recurring Plans Pipeline Opportunities (Aapki image ke mutabiq)
+            // Recurring Plans Pipeline Opportunities
             [
                 'pipeline_id' => $recurringPipelineId,
                 'stage_id' => $recurringStages['active_member'],
+                'stage_location' => 'active_member',
                 'ghl_opportunity_id' => 'ghl_opt_rec_1',
                 'name' => 'Maria Delgado',
                 'description' => 'Monthly maintenance – $145/mo',
@@ -156,6 +164,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $recurringPipelineId,
                 'stage_id' => $recurringStages['active_member'],
+                'stage_location' => 'active_member',
                 'ghl_opportunity_id' => 'ghl_opt_rec_2',
                 'name' => 'Coastal Fleet Rentals',
                 'description' => 'Quarterly fleet – $690/qtr',
@@ -167,6 +176,7 @@ class OpportunitySeeder extends Seeder
             [
                 'pipeline_id' => $recurringPipelineId,
                 'stage_id' => $recurringStages['renewal_due'],
+                'stage_location' => 'renewal_due',
                 'ghl_opportunity_id' => 'ghl_opt_rec_3',
                 'name' => 'Sunrise Rideshare Co.',
                 'description' => 'Quarterly – $560/qtr',

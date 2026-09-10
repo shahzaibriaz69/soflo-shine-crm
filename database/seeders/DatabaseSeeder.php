@@ -10,7 +10,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             CustomerSeeder::class,
-            CustomerJobSeeder::class, // Reserved 'JobSeeder' name issue fixed
+            CustomerJobSeeder::class,
+        ]);
+
+        $this->call([
+            OpportunitySeeder::class,
         ]);
     }
 }

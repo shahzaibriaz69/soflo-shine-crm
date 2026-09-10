@@ -40,9 +40,9 @@
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }} transition">
                 <span>📊</span> Dashboard
             </a>
-            <a href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
-                <span>⏱️</span> Pipeline
+            <a href="{{ route('pipeline.index') }}"
+                class="flex items-center gap-3 px-3 py-2 text-slate-300 hover:bg-slate-800/60 rounded-lg text-sm font-medium">
+                <span>📊</span> Pipeline
             </a>
             <a href="#"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">

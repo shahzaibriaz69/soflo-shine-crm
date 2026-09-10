@@ -1,205 +1,176 @@
 @extends('main')
 
 @section('content')
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        darkBg: '#0b111e',
-                        cardBg: '#131b2e',
-                        cardHover: '#18223a',
-                        cardBorder: '#1e293b',
-                        brandBlue: '#2563eb',
-                        wonGreen: '#15803d',
-                    }
-                }
-            }
-        }
-    </script>
-
-    <div class="space-y-6 font-sans text-slate-200">
-
-        <!-- Top Navigation Header -->
-        <div class="flex justify-between items-start">
-            <div>
-                <h1 class="text-2xl font-bold text-white tracking-tight">Pipelines</h1>
-                <p class="text-xs text-slate-400 mt-1">
-                    <span class="font-semibold text-slate-300">7 open in Sales</span> ·
-                    <span class="text-slate-300 font-semibold">$3,694 in play</span> ·
-                    drag & drop card to move across stages · final phase hands off to another pipeline
-                </p>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <button class="px-3 py-1.5 bg-brandBlue text-white text-xs font-semibold rounded-full shadow-sm">
-                    Sales (8)
-                </button>
-                <button
-                    class="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 text-xs rounded-full font-medium transition">
-                    Recurring plans (3)
-                </button>
-                <button
-                    class="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 text-xs rounded-full font-medium transition flex items-center gap-1">
-                    <span>+</span> New pipeline
-                </button>
-            </div>
+<div x-data="{ currentTab: @js($activeTab) }" class="flex-1 flex flex-col h-full">
+    
+    <!-- Top Bar with Title and Tabs -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Pipelines</h1>
+            <p class="text-xs text-slate-400 mt-0.5" x-show="currentTab === 'sales'">
+                7 open in Sales · $3,694 in play · click → to advance · final phase hands off to another pipeline
+            </p>
+            <p class="text-xs text-slate-400 mt-0.5" x-show="currentTab === 'recurring'" style="display: none;">
+                2 open in Recurring plans · $4,500 in play · click → to advance · final phase hands off to another pipeline
+            </p>
         </div>
 
-        <!-- Kanban Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3 items-start overflow-x-auto pb-4">
+        <!-- Switch Tabs & New Pipeline Button -->
+        <div class="flex items-center gap-3">
+            <div class="bg-slate-800/80 p-1 rounded-lg flex items-center border border-slate-700">
+                <button @click="currentTab = 'sales'" 
+                    :class="currentTab === 'sales' ? 'bg-blue-600 text-white font-medium shadow' : 'text-slate-400 hover:text-white'"
+                    class="px-3 py-1.5 rounded-md text-xs transition">
+                    Sales (8)
+                </button>
+                <button @click="currentTab = 'recurring'" 
+                    :class="currentTab === 'recurring' ? 'bg-blue-600 text-white font-medium shadow' : 'text-slate-400 hover:text-white'"
+                    class="px-3 py-1.5 rounded-md text-xs transition">
+                    Recurring plans (3)
+                </button>
+            </div>
 
-            @foreach($stages as $stageKey => $stage)
-                @php
-                    $stageItems = collect($opportunities)->where('stage', $stageKey);
-                    $stageTotal = $stageItems->sum('value');
-                @endphp
+            <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-4 rounded-lg text-xs flex items-center gap-1.5 shadow">
+                <span>+ New pipeline</span>
+            </button>
+        </div>
+    </div>
 
-                <div class="space-y-2">
-                    <!-- Column Header -->
-                    <div class="flex justify-between items-center px-1">
-                        <h2 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">{{ $stage['title'] }}</h2>
-                        <span class="text-[11px] font-bold text-slate-400 stage-total" data-stage="{{ $stageKey }}">
-                            @if($stageTotal > 0)
-                                ${{ number_format($stageTotal) }}
-                            @else
-                                {{ count($stageItems) }}
-                            @endif
-                        </span>
+    <!-- ================= 1. SALES PIPELINE VIEW ================= -->
+    <div x-show="currentTab === 'sales'" class="flex-1 flex gap-4 overflow-x-auto pb-4">
+        @foreach($salesPipelines as $pipeline)
+            @foreach($pipeline->stages as $stage)
+                <div class="w-72 flex-shrink-0 bg-slate-900/40 rounded-xl p-3 border border-slate-800/60 flex flex-col"
+                     ondragover="allowDrop(event)" 
+                     ondrop="drop(event, '{{ $stage->id }}')">
+                    
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <span class="text-xs font-bold text-slate-300 tracking-wider">{{ strtoupper($stage->name) }}</span>
+                        <span class="text-xs text-slate-500 font-semibold">${{ number_format($stage->opportunities->sum('value')) }}</span>
                     </div>
 
-                    <!-- Cards Column / Drop Zone -->
-                    <div class="space-y-2 min-h-[450px] rounded-lg p-1 transition-colors drop-zone" data-stage="{{ $stageKey }}"
-                        ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
-                        ondrop="handleDrop(event, '{{ $stageKey }}')">
-
-                        @foreach($stageItems as $item)
-                            <div id="card-{{ $item['id'] }}" draggable="true"
-                                ondragstart="handleDragStart(event, '{{ $item['id'] }}')"
-                                class="bg-cardBg border border-slate-800 rounded-lg p-3 hover:border-slate-600 transition space-y-2 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md">
-
-                                <!-- Card Header (Arrow removed) -->
-                                <div class="flex justify-between items-start">
-                                    <h3 class="text-xs font-bold text-white tracking-wide">{{ $item['name'] }}</h3>
+                    <div class="space-y-3 flex-1 min-h-[300px]" data-stage-id="{{ $stage->id }}">
+                        @foreach($stage->opportunities as $opp)
+                            <div class="bg-slate-800/90 border border-slate-700/60 rounded-xl p-3 shadow cursor-grab active:cursor-grabbing hover:border-slate-600 transition"
+                                 draggable="true" 
+                                 ondragstart="drag(event)" 
+                                 data-id="{{ $opp->id }}">
+                                <h4 class="text-sm font-semibold text-white mb-1">{{ $opp->name }}</h4>
+                                <p class="text-xs text-slate-400 mb-2">{{ $opp->description }}</p>
+                                <div class="flex justify-between items-center text-[11px] pt-2 border-t border-slate-700/50">
+                                    <span class="text-slate-500">{{ $opp->time_in_stage ?? '1d in stage' }}</span>
+                                    <span class="font-semibold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700">${{ number_format($opp->value, 2) }}</span>
                                 </div>
-
-                                <!-- Description -->
-                                <p class="text-[11px] text-slate-400 leading-tight">
-                                    {{ $item['description'] }}
-                                </p>
-
-                                <!-- Footer Stats -->
-                                <div class="flex justify-between items-center pt-1 text-[10px] text-slate-400 font-medium">
-                                    <span>{{ $item['time_in_stage'] }}</span>
-                                    @if(($item['value'] ?? 0) > 0)
-                                        <span class="font-bold text-white">${{ number_format($item['value']) }}</span>
-                                    @else
-                                        <span class="text-slate-500">–</span>
-                                    @endif
-                                </div>
-
-                                <!-- Special "Hand off to..." button for WON stage -->
-                                @if(!empty($item['hand_off']))
-                                    <button
-                                        class="w-full mt-2 py-1.5 px-2 bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-600/50 text-emerald-400 rounded text-[10px] font-semibold flex justify-between items-center transition">
-                                        <span>Hand off to... ↗</span>
-                                        <span>v</span>
-                                    </button>
-                                @endif
-
                             </div>
                         @endforeach
                     </div>
                 </div>
             @endforeach
+        @endforeach
 
-            <!-- Add Phase Column -->
-            <div class="space-y-2">
-                <div class="px-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    ADD PHASE
-                </div>
-                <div class="border border-dashed border-slate-800 rounded-lg p-3 bg-cardBg/40 space-y-2">
-                    <input type="text" placeholder="e.g. Deposit paid"
-                        class="w-full bg-slate-900/80 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-slate-700" />
-                    <button
-                        class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded transition">
-                        + Add phase
-                    </button>
-                </div>
-            </div>
-
+        <!-- Add Phase Box for Sales -->
+        <div class="w-72 flex-shrink-0 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl p-3 flex flex-col justify-start">
+            <span class="text-xs font-bold text-slate-400 tracking-wider mb-3">ADD PHASE</span>
+            <input type="text" placeholder="e.g. Deposit paid" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 mb-2 focus:outline-none focus:border-slate-700">
+            <button class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-lg text-xs transition">+ Add phase</button>
         </div>
-
     </div>
 
-    <!-- Drag and Drop JavaScript Logic -->
-    <script>
-        let draggedCardId = null;
+    <!-- ================= 2. RECURRING PLANS PIPELINE VIEW ================= -->
+    <div x-show="currentTab === 'recurring'" style="display: none;" class="flex-1 flex gap-4 overflow-x-auto pb-4">
+        @foreach($recurringPipelines as $pipeline)
+            @foreach($pipeline->stages as $stage)
+                <div class="w-72 flex-shrink-0 bg-slate-900/40 rounded-xl p-3 border border-slate-800/60 flex flex-col"
+                     ondragover="allowDrop(event)" 
+                     ondrop="drop(event, '{{ $stage->id }}')">
+                    
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <span class="text-xs font-bold text-slate-300 tracking-wider">{{ strtoupper($stage->name) }}</span>
+                        <span class="text-xs text-slate-500 font-semibold">${{ number_format($stage->opportunities->sum('value')) }}</span>
+                    </div>
 
-        function handleDragStart(event, id) {
-            draggedCardId = id;
-            event.dataTransfer.setData("text/plain", id);
-            event.dataTransfer.effectAllowed = "move";
-            setTimeout(() => {
-                const el = document.getElementById(`card-${id}`);
-                if (el) el.classList.add('opacity-40');
-            }, 0);
-        }
+                    <div class="space-y-3 flex-1 min-h-[300px]" data-stage-id="{{ $stage->id }}">
+                        @foreach($stage->opportunities as $opp)
+                            <div class="bg-slate-800/90 border border-slate-700/60 rounded-xl p-3 shadow cursor-grab active:cursor-grabbing hover:border-slate-600 transition"
+                                 draggable="true" 
+                                 ondragstart="drag(event)" 
+                                 data-id="{{ $opp->id }}">
+                                <h4 class="text-sm font-semibold text-white mb-1">{{ $opp->name }}</h4>
+                                <p class="text-xs text-slate-400 mb-2">{{ $opp->description }}</p>
+                                <div class="flex justify-between items-center text-[11px] pt-2 border-t border-slate-700/50">
+                                    <span class="text-slate-500">{{ $opp->time_in_stage ?? '32d in stage' }}</span>
+                                    <span class="font-semibold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700">${{ number_format($opp->value, 2) }}</span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+        @endforeach
 
-        function handleDragOver(event) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            const dropZone = event.currentTarget;
-            dropZone.classList.add('bg-slate-800/30', 'border-slate-700');
-        }
+        <!-- Add Phase Box for Recurring -->
+        <div class="w-72 flex-shrink-0 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl p-3 flex flex-col justify-start">
+            <span class="text-xs font-bold text-slate-400 tracking-wider mb-3">ADD PHASE</span>
+            <input type="text" placeholder="e.g. Deposit paid" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 mb-2 focus:outline-none focus:border-slate-700">
+            <button class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-lg text-xs transition">+ Add phase</button>
+        </div>
+    </div>
 
-        function handleDragLeave(event) {
-            const dropZone = event.currentTarget;
-            dropZone.classList.remove('bg-slate-800/30', 'border-slate-700');
-        }
+</div>
 
-        function handleDrop(event, targetStage) {
-            event.preventDefault();
-            const dropZone = event.currentTarget;
-            dropZone.classList.remove('bg-slate-800/30', 'border-slate-700');
+<!-- JavaScript for Drag and Drop & Database Update -->
+<script>
+    function allowDrop(ev) {
+        ev.preventDefault();
+    }
 
-            const cardId = event.dataTransfer.getData("text/plain") || draggedCardId;
-            const cardElement = document.getElementById(`card-${cardId}`);
+    function drag(ev) {
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData("text/plain", ev.currentTarget.getAttribute('data-id'));
+    }
 
-            if (cardElement && dropZone) {
-                cardElement.classList.remove('opacity-40');
-                dropZone.appendChild(cardElement);
+    function drop(ev, stageId) {
+        ev.preventDefault();
+        const oppId = ev.dataTransfer.getData("text/plain");
+        const cardElement = document.querySelector(`[data-id='${CSS.escape(oppId)}']`);
+        
+        if (!cardElement) return;
 
-                // Database Sync via AJAX Call
-                fetch("{{ route('pipeline.updateStage') }}", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                    },
-                    body: JSON.stringify({
-                        id: cardId,
-                        stage: targetStage
-                    })
+        let dropZone = ev.target.closest('[data-stage-id]');
+        if (!dropZone || dropZone.dataset.stageId !== String(stageId)) return;
+
+        const originalParent = cardElement.parentElement;
+        const originalNextSibling = cardElement.nextElementSibling;
+        if (originalParent === dropZone) return;
+
+        dropZone.appendChild(cardElement);
+
+        fetch("{{ route('pipeline.update-stage') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    id: oppId,
+                    stage_id: stageId
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log("Server Response:", data);
-                    })
-                    .catch(error => {
-                        console.error("Database update error:", error);
-                    });
-            }
-        }
-
-        document.addEventListener('dragend', function (event) {
-            if (draggedCardId) {
-                const cardElement = document.getElementById(`card-${draggedCardId}`);
-                if (cardElement) {
-                    cardElement.classList.remove('opacity-40');
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Unable to save the stage change.');
+                return response.json();
+            })
+            .then(data => {
+                if (!data.success) throw new Error(data.message || 'Unable to update stage.');
+            })
+            .catch(error => {
+                console.error('Error updating stage:', error);
+                if (originalNextSibling && originalNextSibling.parentElement === originalParent) {
+                    originalParent.insertBefore(cardElement, originalNextSibling);
+                } else {
+                    originalParent.appendChild(cardElement);
                 }
-            }
-        });
-    </script>
+            });
+    }
+</script>
 @endsection

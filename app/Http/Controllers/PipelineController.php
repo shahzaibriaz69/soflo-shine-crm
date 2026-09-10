@@ -2,69 +2,64 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\GoHighLevelService;
+use App\Models\Opportunity;
+use App\Models\Pipeline;
+use App\Models\Stage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PipelineController extends Controller
 {
-    protected $ghlService;
-
-    public function __construct(GoHighLevelService $ghlService)
-    {
-        $this->ghlService = $ghlService;
-    }
-
     public function index(Request $request)
     {
-        $tab = $request->query('tab', 'sales'); // Default tab 'sales' hai
+        $activeTab = $request->query('tab', 'sales');
 
-        if ($tab === 'recurring') {
-            $stages = [
-                'plan_offered'  => ['title' => 'PLAN OFFERED'],
-                'negotiating'   => ['title' => 'NEGOTIATING'],
-                'active_member' => ['title' => 'ACTIVE MEMBER'],
-                'renewal_due'   => ['title' => 'RENEWAL DUE'],
-            ];
-        } else {
-            $stages = [
-                'new'        => ['title' => 'NEW'],
-                'contacted'  => ['title' => 'CONTACTED'],
-                'quote_sent' => ['title' => 'QUOTE SENT'],
-                'follow_up'  => ['title' => 'FOLLOW-UP'],
-                'scheduled'  => ['title' => 'SCHEDULED'],
-                'won'        => ['title' => 'WON'],
-            ];
+        if (! in_array($activeTab, ['sales', 'recurring'], true)) {
+            $activeTab = 'sales';
         }
 
-        $opportunities = method_exists($this->ghlService, 'getOpportunitiesByType') 
-            ? $this->ghlService->getOpportunitiesByType($tab) 
-            : $this->ghlService->getOpportunities();
+        // Sales aur Recurring pipelines ko unke stages aur opportunities ke sath fetch karein
+        $salesPipelines = Pipeline::where('type', 'sales')->with('stages.opportunities')->get();
+        $recurringPipelines = Pipeline::where('type', 'recurring')->with('stages.opportunities')->get();
 
-        return view('pipeline', compact('opportunities', 'stages', 'tab'));
+        return view('pipeline', compact('salesPipelines', 'recurringPipelines', 'activeTab'));
     }
 
-    // Stage Update API Endpoint
     public function updateStage(Request $request)
     {
-        $request->validate([
-            'id'    => 'required',
-            'stage' => 'required|string',
+        $validated = $request->validate([
+            'id' => 'required|exists:opportunities,id',
+            'stage_id' => 'required|exists:stages,id',
         ]);
 
-        // Direct primary ID se database row update karein
-        $updated = DB::table('opportunities')
-            ->where('id', $request->id)
-            ->update([
-                'stage'      => $request->stage,
-                'updated_at' => now(),
+        $opportunity = Opportunity::findOrFail($validated['id']);
+        $targetStage = Stage::findOrFail($validated['stage_id']);
+
+        abort_unless(
+            $opportunity->pipelineStage?->pipeline_id === $targetStage->pipeline_id,
+            422,
+            'An opportunity can only move within its current pipeline.'
+        );
+
+        DB::transaction(function () use ($opportunity, $targetStage): void {
+            $stageKey = Str::slug($targetStage->name, '_');
+
+            $opportunity->update([
+                'stage_id' => $targetStage->id,
+                'pipeline_id' => $targetStage->pipeline_id,
+                'stage' => $stageKey,
+                'status' => $stageKey === 'won' ? 'won' : 'open',
+                'time_in_stage' => '0m in stage',
             ]);
+        });
 
         return response()->json([
-            'success'     => $updated ? true : false,
-            'message'     => $updated ? 'Stage updated successfully in database!' : 'Record not found!',
-            'received_id' => $request->id,
-            'new_stage'   => $request->stage
+            'success' => true,
+            'message' => 'Stage updated successfully in database!',
+            'received_id' => $opportunity->id,
+            'new_stage_id' => $targetStage->id,
+            'stage' => Str::slug($targetStage->name, '_'),
         ]);
     }
 }

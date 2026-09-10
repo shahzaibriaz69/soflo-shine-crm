@@ -12,6 +12,7 @@ return new class extends Migration {
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
+            $table->string('ghl_contact_id')->nullable(); // Clean field without 'after()'
             $table->string('name');
             $table->string('email')->unique();
             $table->string('phone');

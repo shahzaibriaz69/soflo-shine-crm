@@ -48,57 +48,57 @@
         </div>
         <div class="flex items-center gap-1 bg-cardBg border border-cardBorder p-1 rounded-lg text-xs">
             <button class="px-3 py-1 bg-brandBlue text-white font-medium rounded-md shadow-sm">August</button>
-            <button class="px-3 py-1 text-slate-400 hover:text-white transition">03</button>
+            <button class="px-3 py-1 text-slate-400 hover:text-white transition">Q3</button>
             <button class="px-3 py-1 text-slate-400 hover:text-white transition">YTD</button>
         </div>
     </div>
 
-    <!-- Top 4 KPI Cards -->
+    <!-- Top 4 KPI Cards (Dynamic Metrics) -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <!-- REVENUE -->
         <div class="bg-cardBg p-4 rounded-xl border border-cardBorder card-hover">
             <div class="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
-                <span>REVENUE</span>
+                <span>TOTAL REVENUE</span>
                 <span class="text-brandBlue font-bold">$</span>
             </div>
-            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">$12,840</p>
+            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">${{ number_format($totalRevenue ?? 0, 2) }}</p>
             <p class="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-medium">
-                <span>▲ 16%</span> <span class="text-slate-500 font-normal">over July</span>
+                <span>▲ 16%</span> <span class="text-slate-500 font-normal">over last month</span>
             </p>
         </div>
 
-        <!-- EXPENSES -->
+        <!-- ACTIVE JOBS -->
         <div class="bg-cardBg p-4 rounded-xl border border-cardBorder card-hover">
             <div class="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
-                <span>EXPENSES</span>
-                <span class="text-orange-500">📊</span>
+                <span>ACTIVE JOBS</span>
+                <span class="text-orange-500">⚡</span>
             </div>
-            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">$5,850</p>
-            <p class="text-[11px] text-slate-400 mt-1">materials · labor · overhead</p>
+            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">{{ $activeJobsCount ?? 0 }}</p>
+            <p class="text-[11px] text-slate-400 mt-1">in progress detailing</p>
         </div>
 
-        <!-- NET PROFIT -->
+        <!-- TOTAL CUSTOMERS -->
         <div class="bg-cardBg p-4 rounded-xl border border-cardBorder card-hover">
             <div class="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
-                <span>NET PROFIT</span>
-                <span class="text-emerald-400">📈</span>
+                <span>CUSTOMERS</span>
+                <span class="text-emerald-400">👥</span>
             </div>
-            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">$6,990</p>
-            <p class="text-[11px] text-emerald-400 mt-1 font-medium">54.4% margin</p>
+            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">{{ $totalCustomers ?? 0 }}</p>
+            <p class="text-[11px] text-emerald-400 mt-1 font-medium">Registered accounts</p>
         </div>
 
-        <!-- PIPELINE -->
+        <!-- PIPELINE (GHL Live Feed Count) -->
         <div class="bg-cardBg p-4 rounded-xl border border-cardBorder card-hover">
             <div class="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
-                <span>PIPELINE</span>
+                <span>GHL PIPELINE</span>
                 <span class="text-purple-400">⏳</span>
             </div>
-            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">$3,694</p>
-            <p class="text-[11px] text-slate-400 mt-1">7 open leads</p>
+            <p class="text-3xl font-extrabold text-white mt-2 tracking-tight">{{ count($ghlOpportunities ?? []) }}</p>
+            <p class="text-[11px] text-slate-400 mt-1">Open opportunities</p>
         </div>
     </div>
 
-    <!-- Row 1: Expense Breakdown, Financial Activity, 03 Expenses -->
+    <!-- Row 1: Expense Breakdown, Financial Activity, Q3 Expenses -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
         
         <!-- Donut Chart Card -->
@@ -135,8 +135,8 @@
                     <p class="text-[11px] text-slate-400">Income vs expenses - last 4 months</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-base font-extrabold text-emerald-400">$6,990 <span class="text-[10px] text-slate-400 font-normal">net profit</span></p>
-                    <p class="text-[10px] text-slate-400">54% margin</p>
+                    <p class="text-base font-extrabold text-emerald-400">${{ number_format($totalRevenue ?? 0, 2) }} <span class="text-[10px] text-slate-400 font-normal">net profit</span></p>
+                    <p class="text-[10px] text-slate-400">Calculated live</p>
                 </div>
             </div>
             <div class="h-56 relative">
@@ -144,11 +144,11 @@
             </div>
         </div>
 
-        <!-- 03 Expenses Progress -->
+        <!-- Q3 Expenses Progress -->
         <div class="bg-cardBg p-5 rounded-xl border border-cardBorder card-hover flex flex-col justify-between">
             <div>
                 <div class="flex justify-between items-center">
-                    <h2 class="text-sm font-bold text-white">03 expenses</h2>
+                    <h2 class="text-sm font-bold text-white">Q3 expenses</h2>
                     <span class="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 uppercase">ON TRACK</span>
                 </div>
                 <p class="text-[11px] text-slate-400">vs quarterly budget</p>
@@ -169,19 +169,39 @@
 
     </div>
 
-    <!-- Row 2: Profit Trend, Insight, Plan Members -->
+    <!-- Row 2: GoHighLevel Feed & Plan Members -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
         
-        <!-- Profit Trend Line Chart (Span 2 Columns) -->
+        <!-- Dynamic GoHighLevel Opportunities Feed (Span 2 Columns) -->
         <div class="xl:col-span-2 bg-cardBg p-5 rounded-xl border border-cardBorder card-hover flex flex-col justify-between">
-            <div class="flex justify-between items-center mb-2">
+            <div class="flex justify-between items-center mb-3">
                 <div>
-                    <h2 class="text-sm font-bold text-white">Profit trend</h2>
-                    <p class="text-[11px] text-slate-400">Last 6 weeks</p>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <span>GoHighLevel Opportunities</span>
+                        <span class="text-[9px] bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded uppercase">Plug & Play Feed</span>
+                    </h2>
+                    <p class="text-[11px] text-slate-400">Active leads synced via Service Layer</p>
                 </div>
-                <span class="text-xs text-slate-400 font-semibold">avg $1,165/wk</span>
             </div>
-            <div class="h-44 relative">
+
+            <div class="space-y-2.5 my-2">
+                @forelse($ghlOpportunities as $opportunity)
+                    <div class="flex justify-between items-center p-3 bg-slate-900/60 rounded-lg border border-slate-800 hover:border-slate-700 transition">
+                        <div>
+                            <p class="font-semibold text-white text-xs">{{ $opportunity['name'] ?? 'N/A' }}</p>
+                            <p class="text-[10px] text-slate-400">Pipeline Stage: <span class="text-slate-300">{{ ucfirst($opportunity['pipelineStage'] ?? 'lead') }}</span></p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs font-bold text-emerald-400">${{ number_format($opportunity['monetaryValue'] ?? 0, 2) }}</span>
+                            <span class="block text-[9px] text-blue-400 font-medium uppercase">{{ $opportunity['status'] ?? 'open' }}</span>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-xs text-slate-500 py-4 text-center">No GHL opportunities found.</p>
+                @endforelse
+            </div>
+
+            <div class="h-32 relative mt-2">
                 <canvas id="profitLine"></canvas>
             </div>
         </div>
@@ -244,10 +264,9 @@
 
 </div>
 
-<!-- Chart.js Engine with Smooth Candle Grow Animation -->
+<!-- Chart.js Engine -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Animation Config for Growing Candles Bottom to Top
     const bottomToTopAnimation = {
         y: {
             duration: 1800,
@@ -264,7 +283,7 @@
             datasets: [
                 {
                     label: 'Income',
-                    data: [7000, 7500, 11000, 12840],
+                    data: [7000, 7500, 11000, {{ $totalRevenue ?? 12840 }}],
                     backgroundColor: '#3b82f6',
                     borderRadius: 4,
                     barPercentage: 0.5,

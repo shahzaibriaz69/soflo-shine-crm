@@ -15,20 +15,33 @@ class PipelineController extends Controller
         $this->ghlService = $ghlService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $opportunities = $this->ghlService->getOpportunities();
+        $tab = $request->query('tab', 'sales'); // Default tab 'sales' hai
 
-        $stages = [
-            'new'        => ['title' => 'NEW'],
-            'contacted'  => ['title' => 'CONTACTED'],
-            'quote_sent' => ['title' => 'QUOTE SENT'],
-            'follow_up'  => ['title' => 'FOLLOW-UP'],
-            'scheduled'  => ['title' => 'SCHEDULED'],
-            'won'        => ['title' => 'WON'],
-        ];
+        if ($tab === 'recurring') {
+            $stages = [
+                'plan_offered'  => ['title' => 'PLAN OFFERED'],
+                'negotiating'   => ['title' => 'NEGOTIATING'],
+                'active_member' => ['title' => 'ACTIVE MEMBER'],
+                'renewal_due'   => ['title' => 'RENEWAL DUE'],
+            ];
+        } else {
+            $stages = [
+                'new'        => ['title' => 'NEW'],
+                'contacted'  => ['title' => 'CONTACTED'],
+                'quote_sent' => ['title' => 'QUOTE SENT'],
+                'follow_up'  => ['title' => 'FOLLOW-UP'],
+                'scheduled'  => ['title' => 'SCHEDULED'],
+                'won'        => ['title' => 'WON'],
+            ];
+        }
 
-        return view('pipeline', compact('opportunities', 'stages'));
+        $opportunities = method_exists($this->ghlService, 'getOpportunitiesByType') 
+            ? $this->ghlService->getOpportunitiesByType($tab) 
+            : $this->ghlService->getOpportunities();
+
+        return view('pipeline', compact('opportunities', 'stages', 'tab'));
     }
 
     // Stage Update API Endpoint
@@ -48,10 +61,10 @@ class PipelineController extends Controller
             ]);
 
         return response()->json([
-            'success' => $updated ? true : false,
-            'message' => $updated ? 'Stage updated successfully in database!' : 'Record not found!',
+            'success'     => $updated ? true : false,
+            'message'     => $updated ? 'Stage updated successfully in database!' : 'Record not found!',
             'received_id' => $request->id,
-            'new_stage' => $request->stage
+            'new_stage'   => $request->stage
         ]);
     }
 }

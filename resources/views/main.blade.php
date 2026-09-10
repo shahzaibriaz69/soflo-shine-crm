@@ -40,10 +40,24 @@
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }} transition">
                 <span>📊</span> Dashboard
             </a>
+
+            <!-- Pipeline Link Cleaned -->
             <a href="{{ route('pipeline.index') }}"
-                class="flex items-center gap-3 px-3 py-2 text-slate-300 hover:bg-slate-800/60 rounded-lg text-sm font-medium">
-                <span>📊</span> Pipeline
+                class="flex items-center justify-between px-3 py-2.5 rounded-lg {{ request()->routeIs('pipeline.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }} transition">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z">
+                        </path>
+                    </svg>
+                    <span>Pipeline</span>
+                </div>
+                <span class="px-2 py-0.5 text-xs font-semibold text-white bg-amber-600 rounded-full">
+                    {{ \DB::table('opportunities')->count() }}
+                </span>
             </a>
+
             <a href="#"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
                 <span>📅</span> Calendar

@@ -19,6 +19,55 @@ class PipelineController extends Controller
             $activeTab = 'sales';
         }
 
+        // Agar pipelines table empty hai, toh initial dummy pipelines aur stages create kar dein
+        if (Pipeline::count() === 0) {
+            DB::transaction(function () {
+                // 1. Sales Pipeline
+                $salesPipeline = Pipeline::create([
+                    'name' => 'Sales Pipeline',
+                    'type' => 'sales'
+                ]);
+
+                $salesStages = ['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'];
+                foreach ($salesStages as $index => $stageName) {
+                    $stage = Stage::create([
+                        'pipeline_id' => $salesPipeline->id,
+                        'name' => $stageName,
+                        'order' => $index + 1
+                    ]);
+
+                    // Har stage mein testing ke liye aik dummy opportunity dal dein
+                    if ($stageName === 'New Lead') {
+                        Opportunity::create([
+                            'pipeline_id' => $salesPipeline->id,
+                            'stage_id' => $stage->id,
+                            'name' => '2021 Tesla Model Y — Ashley Nguyen',
+                            'description' => 'Interior + Exterior Full Detail · (305) 555-0147',
+                            'value' => 402.00,
+                            'stage_location' => Str::slug($stageName, '_'),
+                            'status' => 'open',
+                            'time_in_stage' => '12m in stage'
+                        ]);
+                    }
+                }
+
+                // 2. Recurring Pipeline
+                $recurringPipeline = Pipeline::create([
+                    'name' => 'Recurring Maintenance',
+                    'type' => 'recurring'
+                ]);
+
+                $recurringStages = ['Active Maintenance', 'Due for Service', 'Completed'];
+                foreach ($recurringStages as $index => $stageName) {
+                    Stage::create([
+                        'pipeline_id' => $recurringPipeline->id,
+                        'name' => $stageName,
+                        'order' => $index + 1
+                    ]);
+                }
+            });
+        }
+
         $salesPipelines = Pipeline::where('type', 'sales')->with('stages.opportunities')->get();
         $recurringPipelines = Pipeline::where('type', 'recurring')->with('stages.opportunities')->get();
 
@@ -42,7 +91,7 @@ class PipelineController extends Controller
                 $opportunity->update([
                     'stage_id' => $targetStage->id,
                     'pipeline_id' => $targetStage->pipeline_id,
-                    'stage_location' => $stageKey, // Updated column name for phpMyAdmin
+                    'stage_location' => $stageKey, 
                     'status' => $stageKey === 'won' ? 'won' : 'open',
                     'time_in_stage' => '0m in stage',
                 ]);

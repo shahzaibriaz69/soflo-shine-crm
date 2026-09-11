@@ -17,21 +17,30 @@ class DashboardController extends Controller
 
     public function index()
     {
-        $totalRevenue = CustomerJob::where('status', 'completed')->sum('net_profit') ?? 0;
-        $activeJobsCount = CustomerJob::where('status', 'in_progress')->count();
-        $totalCustomers = Customer::count();
+       // Agar tables mein data nahi hai toh testing ke liye dummy numbers show karein
+    $totalRevenue = \App\Models\CustomerJob::count() > 0 
+        ? \App\Models\CustomerJob::where('status', 'completed')->sum('net_profit') 
+        : 5850.00;
 
-        // Data flow verification
-    // dd($totalRevenue, $activeJobsCount, $totalCustomers, $ghlOpportunities);
+    $activeJobsCount = \App\Models\CustomerJob::count() > 0 
+        ? \App\Models\CustomerJob::where('status', 'in_progress')->count() 
+        : 4;
 
-        // Service se Dummy GHL Data
-        $ghlOpportunities = $this->ghlService->getOpportunities();
+    $totalCustomers = \App\Models\Customer::count() > 0 
+        ? \App\Models\Customer::count() 
+        : 42;
 
-        return view('dashboard', compact(
-            'totalRevenue',
-            'activeJobsCount',
-            'totalCustomers',
-            'ghlOpportunities'
-        ));
+    try {
+        $ghlOpportunities = $this->ghlService->getOpportunities() ?? [];
+    } catch (\Exception $e) {
+        $ghlOpportunities = [];
+    }
+
+    return view('dashboard', compact(
+        'totalRevenue',
+        'activeJobsCount',
+        'totalCustomers',
+        'ghlOpportunities'
+    ));
     }
 }

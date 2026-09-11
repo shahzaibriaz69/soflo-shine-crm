@@ -39,6 +39,7 @@ class PipelineController extends Controller
                     // Har stage mein testing ke liye aik dummy opportunity dal dein
                     if ($stageName === 'New Lead') {
                         Opportunity::create([
+                            'ghl_opportunity_id' => 'ghl_dummy_' . rand(1000, 9999),
                             'pipeline_id' => $salesPipeline->id,
                             'stage_id' => $stage->id,
                             'name' => '2021 Tesla Model Y — Ashley Nguyen',

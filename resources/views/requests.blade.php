@@ -97,7 +97,7 @@
                     <button type="button" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg text-sm transition border border-slate-700">
                         Text customer
                     </button>
-                    <button type="button" onclick="declineRequest({{ $request->id }})" class="w-full py-2.5 px-4 bg-transparent hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 font-medium rounded-lg text-sm transition border border-transparent hover:border-rose-500/20">
+                    <button type="button" onclick="declineRequest({{ $request->id }})" class="w-full py-2.5 px-4 bg-transparent hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 font-medium rounded-lg text-sm transition border border-slate-700 hover:border-rose-500/20">
                         Decline
                     </button>
                 </div>

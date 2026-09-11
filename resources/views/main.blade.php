@@ -69,7 +69,7 @@
             <a href="{{ route('requests.index') }}"
                 class="flex items-center justify-between px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition">
                 <div class="flex items-center gap-3">
-                    <!-- Icon -->
+                    <span>💬</span>
                     <span>Requests</span>
                 </div>
                 @php

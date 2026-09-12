@@ -7,6 +7,7 @@ use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\ServiceController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RequestQuoteController;
+use App\Http\Controllers\CustomerMessageController;
 
 // Dashboard Route
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -28,3 +29,7 @@ Route::post('/pipeline/update-stage', [PipelineController::class, 'updateStage']
 Route::get('/requests', [RequestQuoteController::class, 'index'])->name('requests.index');
 Route::post('/requests/{id}/build-quote', [RequestQuoteController::class, 'buildQuote'])->name('requests.build-quote');
 Route::delete('/requests/{id}/decline', [RequestQuoteController::class, 'decline'])->name('requests.decline');
+
+
+// Customer Message Routes
+Route::post('/customer/send-text', [CustomerMessageController::class, 'store'])->name('customer.send-text');

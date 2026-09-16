@@ -108,6 +108,20 @@
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
                 <span>⚙️</span> Settings
             </a>
+            <div class="px-3 mt-4 mb-4">
+                <!-- Status Badge -->
+                <div
+                    class="flex items-center space-x-2 px-3 py-2 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/50 rounded-lg mb-2">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span>Connect GHL 🚀</span>
+                </div>
+
+                <!-- Sync Button -->
+                <a href="{{ route('ghl.sync') }}"
+                    class="w-full flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-md transition-all duration-200">
+                    Sync GHL Data
+                </a>
+            </div>
         </nav>
 
         <!-- Sidebar Footer -->

@@ -8,6 +8,7 @@ use App\Http\Controllers\ServiceController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RequestQuoteController;
 use App\Http\Controllers\CustomerMessageController;
+use App\Http\Controllers\GhlSyncController;
 
 // Dashboard Route
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -33,3 +34,5 @@ Route::delete('/requests/{id}/decline', [RequestQuoteController::class, 'decline
 
 // Customer Message Routes
 Route::post('/customer/send-text', [CustomerMessageController::class, 'store'])->name('customer.send-text');
+
+Route::get('/ghl/sync', [GhlSyncController::class, 'sync'])->name('ghl.sync');

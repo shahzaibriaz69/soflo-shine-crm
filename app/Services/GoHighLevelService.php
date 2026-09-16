@@ -16,20 +16,21 @@ class GoHighLevelService
      */
     public function getOpportunities(?string $locationId = null, ?string $accessToken = null): array
     {
-        // 1. Agar Live Credentials missing hain, toh Local Database se data fetch karein
+        $locationId = $locationId ?? config('services.ghl.location_id');
+        $accessToken = $accessToken ?? config('services.ghl.api_key'); 
+
         if (!$locationId || !$accessToken) {
             return $this->getOpportunitiesByType('sales');
         }
 
-        // 2. Live GHL API Call
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
-                'Version'       => '2021-07-28',
-                'Accept'        => 'application/json',
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
             ])->get("{$this->baseUrl}/opportunities/search", [
                 'location_id' => $locationId,
-                'limit'       => 20,
+                'limit' => 20,
             ]);
 
             if ($response->successful()) {
@@ -46,14 +47,222 @@ class GoHighLevelService
     }
 
     /**
+     * Fetch live opportunities from GHL and sync them to the local database
+     */
+    public function syncOpportunities(): int
+    {
+        $ghlOpportunities = $this->getOpportunities();
+
+        if (empty($ghlOpportunities)) {
+            return 0;
+        }
+
+        $syncedCount = 0;
+
+        foreach ($ghlOpportunities as $opp) {
+            $ghlId = $opp['id'] ?? $opp['opportunityId'] ?? null;
+            
+            if (!$ghlId) continue;
+
+            DB::table('opportunities')->updateOrInsert(
+                ['ghl_opportunity_id' => $ghlId], 
+                [
+                    'name' => $opp['name'] ?? 'Unnamed Opportunity',
+                    'description' => $opp['note'] ?? '',
+                    'stage' => $opp['stageId'] ?? $opp['stage'] ?? 'new',
+                    'status' => $opp['status'] ?? 'open',
+                    'value' => (float) ($opp['monetaryValue'] ?? $opp['value'] ?? 0),
+                    'pipeline_type' => 'sales',
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+
+            $syncedCount++;
+        }
+
+        return $syncedCount;
+    }
+
+    /**
+     * Fetch live contacts from GHL API v2 and sync them to the local database
+     */
+    public function syncContacts(?string $locationId = null, ?string $accessToken = null): int
+    {
+        $locationId = $locationId ?? config('services.ghl.location_id');
+        $accessToken = $accessToken ?? config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/contacts/", [
+                'locationId' => $locationId,
+                'limit' => 20,
+            ]);
+
+            if ($response->successful()) {
+                $contacts = $response->json('contacts') ?? [];
+                $syncedCount = 0;
+
+                foreach ($contacts as $contact) {
+                    $ghlContactId = $contact['id'] ?? null;
+                    if (!$ghlContactId) continue;
+
+                    DB::table('contacts')->updateOrInsert(
+                        ['ghl_contact_id' => $ghlContactId],
+                        [
+                            'name' => trim(($contact['firstName'] ?? '') . ' ' . ($contact['lastName'] ?? '')) ?: 'Unnamed Contact',
+                            'email' => $contact['email'] ?? null,
+                            'phone' => $contact['phone'] ?? null,
+                            'dnd' => (bool) ($contact['dnd'] ?? false),
+                            'custom_fields' => json_encode($contact['customFields'] ?? []),
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
+
+                    $syncedCount++;
+                }
+
+                return $syncedCount;
+            }
+
+            Log::error('GHL Contacts API Error: ' . $response->body());
+            return 0;
+
+        } catch (\Exception $e) {
+            Log::error('GHL Contacts API Exception: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Fetch live appointments/calendars from GHL and sync to local database
+     */
+    public function syncAppointments(?string $locationId = null, ?string $accessToken = null): int
+    {
+        $locationId = $locationId ?? config('services.ghl.location_id');
+        $accessToken = $accessToken ?? config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/appointments/", [
+                'locationId' => $locationId,
+            ]);
+
+            if ($response->successful()) {
+                $appointments = $response->json('appointments') ?? [];
+                $syncedCount = 0;
+
+                foreach ($appointments as $apt) {
+                    $ghlAptId = $apt['id'] ?? null;
+                    if (!$ghlAptId) continue;
+
+                    DB::table('appointments')->updateOrInsert(
+                        ['ghl_appointment_id' => $ghlAptId],
+                        [
+                            'calendar_id' => $apt['calendarId'] ?? null,
+                            'contact_id' => $apt['contactId'] ?? null,
+                            'title' => $apt['title'] ?? 'Scheduled Appointment',
+                            'start_time' => $apt['startTime'] ?? null,
+                            'end_time' => $apt['endTime'] ?? null,
+                            'status' => $apt['appointmentStatus'] ?? 'booked',
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
+
+                    $syncedCount++;
+                }
+
+                return $syncedCount;
+            }
+
+            Log::error('GHL Appointments API Error: ' . $response->body());
+            return 0;
+
+        } catch (\Exception $e) {
+            Log::error('GHL Appointments API Exception: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Fetch live products/catalog from GHL and sync to local database
+     */
+    public function syncProducts(?string $locationId = null, ?string $accessToken = null): int
+    {
+        $locationId = $locationId ?? config('services.ghl.location_id');
+        $accessToken = $accessToken ?? config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/products/", [
+                'locationId' => $locationId,
+            ]);
+
+            if ($response->successful()) {
+                $products = $response->json('products') ?? [];
+                $syncedCount = 0;
+
+                foreach ($products as $prod) {
+                    $ghlProdId = $prod['id'] ?? null;
+                    if (!$ghlProdId) continue;
+
+                    DB::table('products')->updateOrInsert(
+                        ['ghl_product_id' => $ghlProdId],
+                        [
+                            'name' => $prod['name'] ?? 'Unnamed Product',
+                            'description' => $prod['description'] ?? '',
+                            'price' => (float) ($prod['price'] ?? 0),
+                            'type' => $prod['productType'] ?? 'service',
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
+
+                    $syncedCount++;
+                }
+
+                return $syncedCount;
+            }
+
+            Log::error('GHL Products API Error: ' . $response->body());
+            return 0;
+
+        } catch (\Exception $e) {
+            Log::error('GHL Products API Exception: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * Pulls pipeline opportunities by type (sales or recurring) from local database
-     * ensuring real-time drag-and-drop persistence and tab filtering.
      */
     public function getOpportunitiesByType(string $type = 'sales'): array
     {
         $query = DB::table('opportunities');
 
-        // Check karein ke pipeline_type column mojood hai ya nahi taake error na aaye
         if (Schema::hasColumn('opportunities', 'pipeline_type')) {
             $query->where('pipeline_type', $type);
         }
@@ -63,20 +272,20 @@ class GoHighLevelService
         if ($dbOpportunities->isNotEmpty()) {
             return $dbOpportunities->map(function ($item) use ($type) {
                 return [
-                    'id'            => $item->id, // Database Primary ID for exact AJAX mapping
-                    'ghl_id'        => $item->ghl_opportunity_id ?? null,
-                    'name'          => $item->name,
-                    'description'   => $item->description ?? '',
-                    'stage'         => $item->stage ?? 'new',
-                    'status'        => $item->status ?? 'open',
+                    'id' => $item->id,
+                    'ghl_id' => $item->ghl_opportunity_id ?? null,
+                    'name' => $item->name,
+                    'description' => $item->description ?? '',
+                    'stage' => $item->stage ?? 'new',
+                    'status' => $item->status ?? 'open',
                     'monetaryValue' => (float) ($item->value ?? 0),
-                    'value'         => (float) ($item->value ?? 0),
+                    'value' => (float) ($item->value ?? 0),
                     'time_in_stage' => $item->time_in_stage ?? '1d in stage',
                     'pipeline_type' => $item->pipeline_type ?? $type,
-                    'hand_off'      => (bool) ($item->hand_off ?? false),
-                    'contact'       => [
-                        'id'    => 'ghl_cnt_00' . $item->id,
-                        'name'  => $item->name,
+                    'hand_off' => (bool) ($item->hand_off ?? false),
+                    'contact' => [
+                        'id' => 'ghl_cnt_00' . $item->id,
+                        'name' => $item->name,
                         'email' => strtolower(str_replace(' ', '.', $item->name)) . '@example.com',
                     ]
                 ];

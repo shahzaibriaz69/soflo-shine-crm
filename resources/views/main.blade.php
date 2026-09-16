@@ -85,7 +85,7 @@
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
                 <span>👥</span> Customers
             </a>
-            <a href="#"
+            <a href="{{ route('quotes.index') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
                 <span>📝</span> Quotes
             </a>

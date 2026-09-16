@@ -257,6 +257,96 @@ class GoHighLevelService
     }
 
     /**
+     * Fetch products directly for Estimator (tries GHL API, falls back to local database table)
+     */
+    public function fetchProducts(): array
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if ($locationId && $accessToken) {
+            try {
+                $response = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Version' => '2021-07-28',
+                    'Accept' => 'application/json',
+                ])->get("{$this->baseUrl}/products/", [
+                    'locationId' => $locationId,
+                ]);
+
+                if ($response->successful()) {
+                    $products = $response->json('products') ?? [];
+                    if (!empty($products)) {
+                        return collect($products)->map(function ($p) {
+                            return [
+                                'id' => $p['id'] ?? null,
+                                'name' => $p['name'] ?? 'Unnamed Product',
+                                'description' => $p['description'] ?? '',
+                                'price' => (float) ($p['price'] ?? 0),
+                            ];
+                        })->toArray();
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('GHL Fetch Products Exception: ' . $e->getMessage());
+            }
+        }
+
+        // Fallback to local products table if GHL API keys aren't set or return empty
+        if (Schema::hasTable('products')) {
+            return DB::table('products')->get()->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'description' => $p->description ?? '',
+                    'price' => (float) $p->price,
+                ];
+            })->toArray();
+        }
+
+        return [];
+    }
+
+    /**
+     * Push a new quote/opportunity to GoHighLevel
+     */
+    public function createOpportunity(array $quoteData): ?array
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/opportunities/", [
+                'locationId' => $locationId,
+                'name' => ($quoteData['customer_name'] ?? 'Customer') . ' - Quote',
+                'status' => 'open',
+                'monetaryValue' => $quoteData['total_amount'] ?? 0,
+                'pipelineType' => 'sales',
+            ]);
+
+            if ($response->successful()) {
+                return $response->json('opportunity');
+            }
+
+            Log::error('GHL Create Opportunity Error: ' . $response->body());
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('GHL Create Opportunity Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Pulls pipeline opportunities by type (sales or recurring) from local database
      */
     public function getOpportunitiesByType(string $type = 'sales'): array

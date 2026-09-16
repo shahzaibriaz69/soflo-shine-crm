@@ -1,19 +1,26 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GHLAuthController;
 use App\Http\Controllers\PackageController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\ServiceController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RequestQuoteController;
 use App\Http\Controllers\CustomerMessageController;
 use App\Http\Controllers\GhlSyncController;
+use App\Http\Controllers\EstimatorController;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
 
 // Dashboard Route
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-// Services aur Packages Resource Routes
+// Services & Packages Resource Routes
 Route::resource('services', ServiceController::class);
 Route::resource('packages', PackageController::class);
 
@@ -21,7 +28,7 @@ Route::resource('packages', PackageController::class);
 Route::get('/ghl/connect', [GHLAuthController::class, 'redirectToGHL'])->name('ghl.connect');
 Route::get('/ghl/callback', [GHLAuthController::class, 'handleCallback'])->name('ghl.callback');
 
-// Pipeline Routes (Supporting both pipeline and pipeline.index names)
+// Pipeline Routes
 Route::get('/pipeline', [PipelineController::class, 'index'])->name('pipeline.index');
 Route::get('/pipeline/view', [PipelineController::class, 'index'])->name('pipeline');
 Route::post('/pipeline/update-stage', [PipelineController::class, 'updateStage'])->name('pipeline.update-stage');
@@ -31,8 +38,17 @@ Route::get('/requests', [RequestQuoteController::class, 'index'])->name('request
 Route::post('/requests/{id}/build-quote', [RequestQuoteController::class, 'buildQuote'])->name('requests.build-quote');
 Route::delete('/requests/{id}/decline', [RequestQuoteController::class, 'decline'])->name('requests.decline');
 
-
-// Customer Message Routes
+// Customer Message & SMS Routes
 Route::post('/customer/send-text', [CustomerMessageController::class, 'store'])->name('customer.send-text');
 
+// GHL Sync Route
 Route::get('/ghl/sync', [GhlSyncController::class, 'sync'])->name('ghl.sync');
+
+// Estimator & Quotes Routes
+Route::get('/estimator', [EstimatorController::class, 'index'])->name('estimator.index');
+Route::post('/estimator/calculate', [EstimatorController::class, 'calculate'])->name('estimator.calculate');
+Route::post('/estimator/store', [EstimatorController::class, 'store'])->name('estimator.store');
+Route::get('/quotes', [EstimatorController::class, 'quotes'])->name('quotes.index');
+
+// GHL Webhook Listener Route
+Route::post('/ghl/webhook', [App\Http\Controllers\GhlSyncController::class, 'handleWebhook'])->name('ghl.webhook');

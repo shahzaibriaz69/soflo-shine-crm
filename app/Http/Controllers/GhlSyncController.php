@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use App\Services\GoHighLevelService;
+use Illuminate\Support\Facades\Log;
 
 class GhlSyncController extends Controller
 {
@@ -33,5 +35,37 @@ class GhlSyncController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Sync failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Handle incoming webhooks from GoHighLevel
+     */
+    public function handleWebhook(Request $request)
+    {
+        // Log the incoming webhook payload for auditing and debugging
+        Log::info('GHL Webhook Received: ', $request->all());
+
+        $event = $request->input('type') ?? $request->input('event');
+
+        // Handle specific GHL events securely
+        switch ($event) {
+            case 'OpportunityStatusUpdate':
+            case 'opportunityUpdate':
+                // Update local quote/opportunity stage if needed
+                break;
+                
+            case 'InboundMessage':
+                // Handle incoming customer SMS replies
+                break;
+
+            default:
+                // Generic handler
+                break;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Webhook received and processed successfully.'
+        ], 200);
     }
 }

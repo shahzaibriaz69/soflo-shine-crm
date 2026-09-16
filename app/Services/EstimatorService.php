@@ -81,7 +81,8 @@ class EstimatorService
      */
     public function saveQuote(array $data): int
     {
-        $customerName = trim((string) ($data['customer_name'] ?? 'Walk-in Customer')) ?: 'Walk-in Customer';
+        $customerName = trim((string) ($data['customer_name'] ?? $data['customer'] ?? 'Walk-in Customer')) ?: 'Walk-in Customer';
+        
         $customer = Customer::firstOrCreate(
             ['name' => $customerName],
             [
@@ -97,7 +98,8 @@ class EstimatorService
         $conditionKey = strtolower((string) ($data['condition'] ?? 'standard'));
         $totalAmount = (float) ($data['total_estimate'] ?? 0);
 
-        $quote = Quote::create([
+        // Check if the quotes table has a 'customer' column or if it uses relationships
+        $quoteData = [
             'quote_number' => 'Q-' . strtoupper(substr(md5((string) now()->timestamp . $customerName . random_int(1000, 9999)), 0, 8)),
             'customer_id' => $customer->id,
             'vehicle_size_multiplier' => [
@@ -119,7 +121,16 @@ class EstimatorService
             ][$conditionKey] ?? 1.0,
             'total_amount' => $totalAmount,
             'status' => 'draft',
-        ]);
+        ];
+
+        // Safely add customer name text column if the schema supports it to prevent blank table views
+        if (\Illuminate\Support\Facades\Schema::hasColumn('quotes', 'customer')) {
+            $quoteData['customer'] = $customerName;
+        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('quotes', 'customer_name')) {
+            $quoteData['customer_name'] = $customerName;
+        }
+
+        $quote = Quote::create($quoteData);
 
         $this->ghlService->createOpportunity([
             'customer_name' => $customerName,

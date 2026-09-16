@@ -33,6 +33,7 @@ Route::get('/pipeline', [PipelineController::class, 'index'])->name('pipeline.in
 Route::get('/pipeline/view', [PipelineController::class, 'index'])->name('pipeline');
 Route::post('/pipeline/update-stage', [PipelineController::class, 'updateStage'])->name('pipeline.update-stage');
 
+
 // RequestQuote Routes
 Route::get('/requests', [RequestQuoteController::class, 'index'])->name('requests.index');
 Route::post('/requests/{id}/build-quote', [RequestQuoteController::class, 'buildQuote'])->name('requests.build-quote');

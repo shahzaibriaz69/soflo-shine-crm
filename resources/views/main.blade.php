@@ -148,9 +148,10 @@
             </div>
             <div class="flex items-center gap-4">
                 <p class="text-sm text-slate-400">Thu, Aug 20, 2026</p>
-                <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-5 rounded-lg text-sm">
+                <a href="{{ route('estimator.index') }}"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-5 rounded-lg text-sm text-decoration-none d-inline-block">
                     + New Quote
-                </button>
+                </a>
             </div>
         </header>
 

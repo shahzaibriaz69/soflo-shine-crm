@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use App\Services\EstimatorService;
 use App\Services\GoHighLevelService;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +34,7 @@ class EstimatorController extends Controller
             'condition' => 'required|string',
             'customer_name' => 'required|string',
             'phone' => 'nullable|string',
+            'customer_email' => 'nullable|email',
         ]);
 
         $result = $this->estimatorService->calculateEstimate(
@@ -48,6 +50,7 @@ class EstimatorController extends Controller
         // Save quote locally
         $this->estimatorService->saveQuote([
             'customer_name' => $request->input('customer_name'),
+            'phone' => $request->input('phone'),
             'size' => $request->input('size'),
             'condition' => $request->input('condition'),
             'total_estimate' => $result['total_estimate'],
@@ -63,13 +66,41 @@ class EstimatorController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, and SMS triggered! Total: $' . $result['total_estimate']);
+        // Send Email using the mail folder template (mail.quote-email)
+        $email = $request->input('customer_email');
+        if ($email) {
+            try {
+                $emailData = [
+                    'customerName' => $request->input('customer_name'),
+                    'serviceName' => $result['product_name'] ?? 'Auto Detailing Package',
+                    'size' => $request->input('size'),
+                    'condition' => $request->input('condition'),
+                    'totalAmount' => $result['total_estimate'],
+                    'approvalUrl' => url('/quotes/approve/' . uniqid())
+                ];
+
+                Mail::send('mail.quote-email', $emailData, function($message) use ($email) {
+                    $message->to($email)
+                            ->subject('Your Official SoFlo Shine Detailing Quote');
+                });
+            } catch (\Exception $e) {
+                Log::error('Quote Email Notification Failed: ' . $e->getMessage());
+            }
+        }
+
+        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
     }
 
     public function quotes()
     {
         $products = $this->estimatorService->getAvailableProducts();
-        $quotes = DB::table('quotes')->orderBy('created_at', 'desc')->get();
+        
+        // Joined with customers table to fetch customer name for the history view
+        $quotes = DB::table('quotes')
+            ->leftJoin('customers', 'quotes.customer_id', '=', 'customers.id')
+            ->select('quotes.*', 'customers.name as customer_name', 'customers.phone as customer_phone')
+            ->orderBy('quotes.created_at', 'desc')
+            ->get();
 
         return view('quotes', compact('quotes', 'products'));
     }

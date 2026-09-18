@@ -15,21 +15,21 @@ class GoHighLevelService
     public function getOpportunities(?string $locationId = null, ?string $accessToken = null): array
     {
         $locationId = $locationId ?? config('services.ghl.location_id');
-        $accessToken = $accessToken ?? config('services.ghl.api_key'); 
+        $accessToken = $accessToken ?? config('services.ghl.api_key');
 
         if (!$locationId || !$accessToken) {
             return $this->getOpportunitiesByType('sales');
         }
-
+        
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
             ])->get("{$this->baseUrl}/opportunities/search", [
-                'location_id' => $locationId,
-                'limit' => 20,
-            ]);
+                        'location_id' => $locationId,
+                        'limit' => 20,
+                    ]);
 
             if ($response->successful()) {
                 return $response->json('opportunities') ?? [];
@@ -59,8 +59,8 @@ class GoHighLevelService
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
             ])->get("{$this->baseUrl}/opportunities/pipelines", [
-                'locationId' => $locationId,
-            ]);
+                        'locationId' => $locationId,
+                    ]);
 
             if ($response->successful()) {
                 return $response->json('pipelines') ?? [];
@@ -91,7 +91,7 @@ class GoHighLevelService
             if (!empty($pipelines)) {
                 $firstPipeline = $pipelines[0];
                 $pipelineId = $firstPipeline['id'] ?? null;
-                
+
                 if (!empty($firstPipeline['stages'])) {
                     $stageId = $firstPipeline['stages'][0]['id'] ?? null;
                 }
@@ -224,11 +224,11 @@ class GoHighLevelService
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
             ])->post("{$this->baseUrl}/conversations/messages", [
-                'type' => 'SMS',
-                'locationId' => $locationId,
-                'phone' => $phone,
-                'message' => $message,
-            ]);
+                        'type' => 'SMS',
+                        'locationId' => $locationId,
+                        'phone' => $phone,
+                        'message' => $message,
+                    ]);
 
             return $response->successful();
         } catch (\Exception $e) {
@@ -330,9 +330,9 @@ class GoHighLevelService
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
             ])->get("{$this->baseUrl}/contacts/", [
-                'locationId' => $locationId,
-                'limit' => 50,
-            ]);
+                        'locationId' => $locationId,
+                        'limit' => 50,
+                    ]);
 
             if ($response->successful()) {
                 $contacts = $response->json('contacts') ?? [];
@@ -370,15 +370,15 @@ class GoHighLevelService
         if (!$locationId || !$accessToken) {
             return 0;
         }
-
+        
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
             ])->get("{$this->baseUrl}/users/", [
-                'locationId' => $locationId,
-            ]);
+                        'locationId' => $locationId,
+                    ]);
 
             if ($response->successful()) {
                 $users = $response->json('users') ?? [];

@@ -36,9 +36,10 @@ class GhlSyncController extends Controller
 
             // 5. Sync Products domain (Catalog)
             $syncedProducts = $this->ghlService->syncProducts();
-
+Log::info('hshghsgh');
             return redirect()->back()->with('success', "Successfully synced {$syncedOpportunities} opportunities, {$syncedContacts} contacts, {$syncedUsers} team members, {$syncedAppointments} appointments, and {$syncedProducts} products from GoHighLevel!");
         } catch (\Exception $e) {
+            Log::error($e->getMessage());
             return redirect()->back()->with('error', 'Sync failed: ' . $e->getMessage());
         }
     }

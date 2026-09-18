@@ -13,8 +13,11 @@ return new class extends Migration {
         Schema::create('packages', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('category')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->string('duration')->nullable();
             $table->text('description')->nullable();
-            $table->decimal('base_price', 8, 2);
+            $table->string('status')->default('Active');
             $table->timestamps();
         });
     }

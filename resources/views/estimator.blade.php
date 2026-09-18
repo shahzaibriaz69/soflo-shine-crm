@@ -2,7 +2,8 @@
 
 @section('content')
 <!-- Bootstrap 5 CSS CDN (Temporary fix for styling) -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></div>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
 <div class="container-fluid px-4 py-4">
     <form action="{{ route('estimator.store') }}" method="POST" id="quoteForm">
         @csrf
@@ -22,6 +23,13 @@
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
@@ -91,11 +99,18 @@
                         </div>
                         <select name="product_id" id="serviceSelect" class="form-select bg-dark text-white border-secondary mb-3" required>
                             <option value="" class="bg-dark text-white">Choose a service package...</option>
-                            @foreach($products as $product)
-                                <option value="{{ $product['id'] }}" data-price="{{ $product['price'] }}" class="bg-dark text-white">
-                                    {{ $product['name'] }} (${{ number_format($product['price'], 2) }})
-                                </option>
-                            @endforeach
+                            @if(!empty($products))
+                                @foreach($products as $product)
+                                    @php
+                                        $pId = is_object($product) ? ($product->id ?? '') : ($product['id'] ?? '');
+                                        $pName = is_object($product) ? ($product->name ?? '') : ($product['name'] ?? '');
+                                        $pPrice = is_object($product) ? ($product->base_price ?? $product->price ?? 0) : ($product['base_price'] ?? $product['price'] ?? 0);
+                                    @endphp
+                                    <option value="{{ $pId }}" data-price="{{ $pPrice }}" class="bg-dark text-white">
+                                        {{ $pName }} (${{ number_format($pPrice, 2) }})
+                                    </option>
+                                @endforeach
+                            @endif
                         </select>
                     </div>
 
@@ -202,7 +217,7 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn btn-dark w-100 py-3 fw-bold rounded-pill shadow">
+                    <button type="submit" class="btn btn-dark w-100 py-3 fw-bold rounded-pill shadow">
                         Accept Quote & Schedule &rarr;
                     </button>
                     <div class="text-center mt-2 text-muted" style="font-size: 10px;">

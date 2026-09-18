@@ -3,9 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GHLAuthController;
-use App\Http\Controllers\PackageController;
 use App\Http\Controllers\PipelineController;
-use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\RequestQuoteController;
 use App\Http\Controllers\CustomerMessageController;
 use App\Http\Controllers\GhlSyncController;
@@ -37,10 +35,6 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Services & Packages Resource Routes
-    Route::resource('services', ServiceController::class);
-    Route::resource('packages', PackageController::class);
-
     // GHL Auth Routes
     Route::get('/ghl/connect', [GHLAuthController::class, 'redirectToGHL'])->name('ghl.connect');
     Route::get('/ghl/callback', [GHLAuthController::class, 'handleCallback'])->name('ghl.callback');
@@ -63,12 +57,21 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-// Protected Owner / Admin Routes (Estimator & Quotes) - Updated role name to match seeder
+// Protected Owner / Admin Routes (Estimator, Services, Packages & Quotes)
 Route::middleware(['auth', 'role:Owner/Admin'])->group(function () {
+    // Estimator & Quotes
     Route::get('/estimator', [EstimatorController::class, 'index'])->name('estimator.index');
     Route::post('/estimator/calculate', [EstimatorController::class, 'calculate'])->name('estimator.calculate');
     Route::post('/estimator/store', [EstimatorController::class, 'store'])->name('estimator.store');
     Route::get('/quotes', [EstimatorController::class, 'quotes'])->name('quotes.index');
+
+    // Services Management Routes
+    Route::get('/services', [EstimatorController::class, 'servicesIndex'])->name('services.index');
+    Route::post('/services', [EstimatorController::class, 'serviceStore'])->name('services.store');
+
+    // Packages Management Routes
+    Route::get('/packages', [EstimatorController::class, 'packagesIndex'])->name('packages.index');
+    Route::post('/packages', [EstimatorController::class, 'packageStore'])->name('packages.store');
 });
 
 // GHL Webhook Listener Route (Public API endpoint)

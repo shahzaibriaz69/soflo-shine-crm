@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Services\EstimatorService;
 use App\Services\GoHighLevelService;
 use Illuminate\Support\Facades\Log;
+use App\Models\Service;
+use App\Models\Package;
 
 class EstimatorController extends Controller
 {
@@ -98,9 +100,9 @@ class EstimatorController extends Controller
                     'approvalUrl' => url('/quotes/approve/' . uniqid())
                 ];
 
-                Mail::send('mail.quote-email', $emailData, function($message) use ($email) {
+                Mail::send('mail.quote-email', $emailData, function ($message) use ($email) {
                     $message->to($email)
-                            ->subject('Your Official SoFlo Shine Detailing Quote');
+                        ->subject('Your Official SoFlo Shine Detailing Quote');
                 });
             } catch (\Exception $e) {
                 Log::error('Quote Email Notification Failed: ' . $e->getMessage());
@@ -113,7 +115,7 @@ class EstimatorController extends Controller
     public function quotes()
     {
         $products = $this->estimatorService->getAvailableProducts();
-        
+
         // Joined with customers table to fetch customer name for the history view
         $quotes = DB::table('quotes')
             ->leftJoin('customers', 'quotes.customer_id', '=', 'customers.id')
@@ -122,5 +124,42 @@ class EstimatorController extends Controller
             ->get();
 
         return view('quotes', compact('quotes', 'products'));
+    }
+
+    public function servicesIndex()
+    {
+    
+        $products = Service::all();
+
+        return view('services', compact('products'));
+    }
+
+    public function packagesIndex()
+    {
+        $packages = Package::all();
+        return view('packages', compact('packages'));
+    }
+
+    // Store new package
+    public function storePackage(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'category' => 'required|string',
+            'price' => 'required|numeric',
+            'duration' => 'nullable|string',
+            'description' => 'nullable|string',
+        ]);
+
+        Package::create([
+            'name' => $request->name,
+            'category' => $request->category,
+            'price' => $request->price,
+            'duration' => $request->duration,
+            'description' => $request->description,
+            'status' => 'Active',
+        ]);
+
+        return redirect()->route('packages.index')->with('success', 'Package successfully create ho gaya hai!');
     }
 }

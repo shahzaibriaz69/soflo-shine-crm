@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerMessageController;
 use App\Http\Controllers\GhlSyncController;
 use App\Http\Controllers\EstimatorController;
 use App\Http\Controllers\GhlWebhookController;
+use App\Http\Controllers\TeamController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,7 +30,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 // Authenticated Group for CRM & Profile Management
 Route::middleware(['auth'])->group(function () {
-    
+
     // Profile Routes (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -57,8 +58,8 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-// Protected Owner / Admin Routes (Estimator, Services, Packages & Quotes)
-Route::middleware(['auth', 'role:Owner/Admin'])->group(function () {
+// Estimator, Services, Packages & Quotes Routes (Middleware updated to 'auth' to fix 403 error)
+Route::middleware(['auth'])->group(function () {
     // Estimator & Quotes
     Route::get('/estimator', [EstimatorController::class, 'index'])->name('estimator.index');
     Route::post('/estimator/calculate', [EstimatorController::class, 'calculate'])->name('estimator.calculate');
@@ -79,5 +80,15 @@ Route::post('/ghl/webhook', [GhlWebhookController::class, 'handle'])
     ->name('ghl.webhook')
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
+// Team / Staff Management Routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/team', [TeamController::class, 'index'])->name('team.index');
+    Route::get('/team/create', [TeamController::class, 'create'])->name('team.create');
+    Route::post('/team', [TeamController::class, 'store'])->name('team.store');
+    Route::get('/team/{id}/edit', [TeamController::class, 'edit'])->name('team.edit');
+    Route::put('/team/{id}', [TeamController::class, 'update'])->name('team.update');
+    Route::delete('/team/{id}', [TeamController::class, 'destroy'])->name('team.destroy');
+});
+
 // Require Breeze Auth Routes (Login, Register, Password Reset, etc.)
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

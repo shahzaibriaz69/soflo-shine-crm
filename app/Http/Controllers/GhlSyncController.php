@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use App\Services\GoHighLevelService;
 use Illuminate\Support\Facades\Log;
@@ -53,7 +53,7 @@ class GhlSyncController extends Controller
             case 'opportunityUpdate':
                 // Update local quote/opportunity stage if needed
                 break;
-                
+
             case 'InboundMessage':
                 // Handle incoming customer SMS replies
                 break;
@@ -67,5 +67,31 @@ class GhlSyncController extends Controller
             'success' => true,
             'message' => 'Webhook received and processed successfully.'
         ], 200);
+    }
+
+    public function syncStaffToGHL($staffMember)
+    {
+        $apiKey = env('GHL_API_TOKEN');
+        $locationId = env('GHL_LOCATION_ID');
+
+        $response = Http::withToken($apiKey)
+            ->withHeaders([
+                'Version' => '2021-07-28',
+                'Content-Type' => 'application/json'
+            ])
+            ->post('https://services.leadconnectorhq.com/users/', [
+                'firstName' => $staffMember->first_name,
+                'lastName' => $staffMember->last_name,
+                'email' => $staffMember->email,
+                'phone' => $staffMember->phone,
+                'role' => $staffMember->role ?? 'account-user',
+                'locationId' => $locationId
+            ]);
+
+        if ($response->successful()) {
+            return response()->json(['success' => true, 'data' => $response->json()]);
+        }
+
+        return response()->json(['success' => false, 'error' => $response->body()]);
     }
 }

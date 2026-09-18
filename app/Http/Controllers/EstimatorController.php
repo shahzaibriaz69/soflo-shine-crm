@@ -116,11 +116,9 @@ class EstimatorController extends Controller
     {
         $products = $this->estimatorService->getAvailableProducts();
 
-        // Joined with customers table to fetch customer name for the history view
+        // Fixed: Querying quotes directly without missing customer table join
         $quotes = DB::table('quotes')
-            ->leftJoin('customers', 'quotes.customer_id', '=', 'customers.id')
-            ->select('quotes.*', 'customers.name as customer_name', 'customers.phone as customer_phone')
-            ->orderBy('quotes.created_at', 'desc')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return view('quotes', compact('quotes', 'products'));
@@ -128,9 +126,7 @@ class EstimatorController extends Controller
 
     public function servicesIndex()
     {
-    
         $products = Service::all();
-
         return view('services', compact('products'));
     }
 

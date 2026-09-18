@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Models\User;
 
 class GoHighLevelService
 {
@@ -83,7 +84,6 @@ class GoHighLevelService
         }
 
         try {
-            // GHL se automatically pipeline aur stage fetch kar rahe hain
             $pipelines = $this->getGhlPipelines();
             $pipelineId = null;
             $stageId = null;
@@ -127,6 +127,84 @@ class GoHighLevelService
 
         } catch (\Exception $e) {
             Log::error('GHL Create Opportunity Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function updateOpportunity(string $ghlId, array $data): ?array
+    {
+        $accessToken = config('services.ghl.api_key');
+        if (!$accessToken || !$ghlId) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->put("{$this->baseUrl}/opportunities/{$ghlId}", $data);
+
+            if ($response->successful()) {
+                return $response->json('opportunity');
+            }
+
+            Log::error('GHL Update Opportunity Error: ' . $response->body());
+            return null;
+        } catch (\Exception $e) {
+            Log::error('GHL Update Opportunity Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function deleteOpportunity(string $ghlId): bool
+    {
+        $accessToken = config('services.ghl.api_key');
+        if (!$accessToken || !$ghlId) {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->delete("{$this->baseUrl}/opportunities/{$ghlId}");
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('GHL Delete Opportunity Exception: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function createContact(array $contactData): ?array
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return null;
+        }
+
+        try {
+            $payload = array_merge(['locationId' => $locationId], $contactData);
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/contacts/", $payload);
+
+            if ($response->successful()) {
+                return $response->json('contact');
+            }
+
+            Log::error('GHL Create Contact Error: ' . $response->body());
+            return null;
+        } catch (\Exception $e) {
+            Log::error('GHL Create Contact Exception: ' . $e->getMessage());
             return null;
         }
     }
@@ -279,6 +357,51 @@ class GoHighLevelService
             }
         } catch (\Exception $e) {
             Log::error('GHL Sync Contacts Exception: ' . $e->getMessage());
+        }
+
+        return 0;
+    }
+
+    public function syncUsers(): int
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/users/", [
+                'locationId' => $locationId,
+            ]);
+
+            if ($response->successful()) {
+                $users = $response->json('users') ?? [];
+                $count = 0;
+
+                foreach ($users as $user) {
+                    if (Schema::hasTable('users')) {
+                        User::updateOrCreate(
+                            ['email' => $user['email'] ?? null],
+                            [
+                                'name' => trim(($user['firstName'] ?? '') . ' ' . ($user['lastName'] ?? '')),
+                                'phone' => $user['phone'] ?? null,
+                                'role' => $user['role'] ?? 'account-user',
+                                'password' => bcrypt('password123'),
+                            ]
+                        );
+                        $count++;
+                    }
+                }
+                return $count;
+            }
+        } catch (\Exception $e) {
+            Log::error('GHL Sync Users Exception: ' . $e->getMessage());
         }
 
         return 0;

@@ -2,17 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use App\Models\User;
+use App\Http\Controllers\GhlSyncController;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
 class TeamController extends Controller
 {
+    protected GhlSyncController $ghlSyncController;
+
+    public function __construct(GhlSyncController $ghlSyncController)
+    {
+        $this->ghlSyncController = $ghlSyncController;
+    }
+
     public function index()
     {
-        $teamMembers = \App\Models\User::all();
+        $teamMembers = User::all();
         return view('team.index', compact('teamMembers'));
     }
 
@@ -23,69 +30,72 @@ class TeamController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:50',
-            'role' => 'required|string',
-            'password' => 'required|min:6',
+            'phone' => 'nullable|string',
+            'password' => 'required|string|min:6',
+            'role' => 'nullable|string',
         ]);
 
-        $ghlUserId = null;
+        // 1. Create locally in database
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone ?? null,
+            'password' => Hash::make($request->password),
+            'role' => $request->role ?? 'Staff',
+        ]);
 
+        // 2. Automatically push/sync to GoHighLevel
         try {
-            $baseUrl = config('services.ghl.base_url', 'https://services.leadconnectorhq.com');
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . config('services.ghl.api_key'),
-                'Version' => '2021-07-28',
-                'Content-Type' => 'application/json',
-            ])->postr($baseUrl . '/users/', [
-                        'name' => $validated['name'],
-                        'email' => $validated['email'],
-                        'phone' => $validated['phone'] ?? '',
-                        'role' => $validated['role'],
-                        'locationId' => config('services.ghl.location_id'),
-                    ]);
-
-            if ($response->successful()) {
-                $ghlUserId = $response->json('user.id') ?? $response->json('id') ?? null;
-            } else {
-                Log::error('GHL User Creation Failed: ' . $response->body());
-            }
+            $this->ghlSyncController->syncStaffToGHL($user);
         } catch (\Exception $e) {
-            Log::error('GHL API Connection Error: ' . $e->getMessage());
+            Log::error('Failed to sync team member to GHL: ' . $e->getMessage());
         }
 
-        User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
-            'role' => $validated['role'],
-            'password' => Hash::make($validated['password']),
-            'ghl_user_id' => $ghlUserId,
+        return redirect()->route('team.index')->with('success', 'Team member successfully created and synced with GHL!');
+    }
+
+    public function edit($id)
+    {
+        $member = User::findOrFail($id);
+        return view('team.edit', compact('member'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string',
+            'role' => 'nullable|string',
         ]);
 
-        return redirect()->route('team.index')->with('success', 'Team member successfully created and synced with GHL!');
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone ?? $user->phone,
+            'role' => $request->role ?? $user->role,
+        ]);
+
+        // Optional: Sync update to GHL if needed
+        try {
+            $this->ghlSyncController->syncStaffToGHL($user);
+        } catch (\Exception $e) {
+            Log::error('Failed to update team member sync to GHL: ' . $e->getMessage());
+        }
+
+        return redirect()->route('team.index')->with('success', 'Team member successfully updated!');
     }
 
     public function destroy($id)
     {
         $user = User::findOrFail($id);
-
-        if ($user->ghl_user_id) {
-            try {
-                $baseUrl = config('services.ghl.base_url', 'https://services.leadconnectorhq.com');
-                Http::withHeaders([
-                    'Authorization' => 'Bearer ' . config('services.ghl.api_key'),
-                    'Version' => '2021-07-28',
-                ])->delete($baseUrl . '/users/' . $user->ghl_user_id);
-            } catch (\Exception $e) {
-                Log::error('GHL User Deletion Error: ' . $e->getMessage());
-            }
-        }
-
         $user->delete();
 
-        return redirect()->route('team.index')->with('success', 'Team member deleted successfully.');
+        return redirect()->route('team.index')->with('success', 'Team member deleted successfully!');
     }
 }

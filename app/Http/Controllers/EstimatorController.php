@@ -58,14 +58,25 @@ class EstimatorController extends Controller
             'total_estimate' => $result['total_estimate'],
         ]);
 
-        // 2. Push Opportunity to GoHighLevel (GHL) so it won't be empty
+        // 2. Push Opportunity and Contact to GoHighLevel (GHL)
         try {
+            // Create Contact on GHL if email/phone exists
+            if ($request->input('customer_email') || $request->input('phone')) {
+                $nameParts = explode(' ', trim($request->input('customer_name')), 2);
+                $this->ghlService->createContact([
+                    'firstName' => $nameParts[0] ?? 'Customer',
+                    'lastName' => $nameParts[1] ?? '',
+                    'email' => $request->input('customer_email'),
+                    'phone' => $request->input('phone'),
+                ]);
+            }
+
+            // Create Opportunity on GHL
             $ghlResponse = $this->ghlService->createOpportunity([
                 'customer_name' => $request->input('customer_name'),
                 'total_amount' => $result['total_estimate'],
             ]);
 
-            // Optional: If you need to store the GHL opportunity ID locally
             if (!empty($ghlResponse['id']) && DB::getSchemaBuilder()->hasTable('opportunities')) {
                 DB::table('opportunities')
                     ->where('name', 'LIKE', '%' . $request->input('customer_name') . '%')
@@ -73,7 +84,7 @@ class EstimatorController extends Controller
                     ->update(['ghl_opportunity_id' => $ghlResponse['id']]);
             }
         } catch (\Exception $e) {
-            Log::error('GHL Push Opportunity Failed: ' . $e->getMessage());
+            Log::error('GHL Push Sync Failed: ' . $e->getMessage());
         }
 
         // 3. Send SMS notification via GHL
@@ -87,7 +98,7 @@ class EstimatorController extends Controller
             }
         }
 
-        // 4. Send Email using the mail folder template (mail.quote-email)
+        // 4. Send Email using the mail folder template
         $email = $request->input('customer_email');
         if ($email) {
             try {
@@ -109,19 +120,39 @@ class EstimatorController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Quote successfully generated, pushed to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
+        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
     }
 
     public function quotes()
     {
         $products = $this->estimatorService->getAvailableProducts();
 
-        // Fixed: Querying quotes directly without missing customer table join
         $quotes = DB::table('quotes')
             ->orderBy('created_at', 'desc')
             ->get();
 
         return view('quotes', compact('quotes', 'products'));
+    }
+
+    // Delete quote with GHL Opportunity cleanup
+    public function destroyQuote($id)
+    {
+        $quote = DB::table('quotes')->where('id', $id)->first();
+        
+        if ($quote && DB::getSchemaBuilder()->hasColumn('opportunities', 'ghl_opportunity_id')) {
+            $opportunity = DB::table('opportunities')->where('name', 'LIKE', '%' . $quote->customer_name . '%')->first();
+            if ($opportunity && !empty($opportunity->ghl_opportunity_id)) {
+                try {
+                    $this->ghlService->deleteOpportunity($opportunity->ghl_opportunity_id);
+                } catch (\Exception $e) {
+                    Log::error('GHL Delete Opportunity Sync Failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        DB::table('quotes')->where('id', $id)->delete();
+
+        return redirect()->back()->with('success', 'Quote successfully deleted locally and on GHL!');
     }
 
     public function servicesIndex()
@@ -136,7 +167,6 @@ class EstimatorController extends Controller
         return view('packages', compact('packages'));
     }
 
-    // Store new package
     public function storePackage(Request $request)
     {
         $request->validate([

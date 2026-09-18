@@ -10,6 +10,7 @@ use App\Http\Controllers\RequestQuoteController;
 use App\Http\Controllers\CustomerMessageController;
 use App\Http\Controllers\GhlSyncController;
 use App\Http\Controllers\EstimatorController;
+use App\Http\Controllers\GhlWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,7 +24,7 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Authenticated CRM Dashboard Route (Breeze default /dashboard replaced with your DashboardController)
+// Authenticated CRM Dashboard Route
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
@@ -62,8 +63,8 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-// Protected Super Admin Routes (Estimator & Quotes)
-Route::middleware(['auth', 'role:Super Admin'])->group(function () {
+// Protected Owner / Admin Routes (Estimator & Quotes) - Updated role name to match seeder
+Route::middleware(['auth', 'role:Owner/Admin'])->group(function () {
     Route::get('/estimator', [EstimatorController::class, 'index'])->name('estimator.index');
     Route::post('/estimator/calculate', [EstimatorController::class, 'calculate'])->name('estimator.calculate');
     Route::post('/estimator/store', [EstimatorController::class, 'store'])->name('estimator.store');
@@ -71,7 +72,9 @@ Route::middleware(['auth', 'role:Super Admin'])->group(function () {
 });
 
 // GHL Webhook Listener Route (Public API endpoint)
-Route::post('/ghl/webhook', [GhlSyncController::class, 'handleWebhook'])->name('ghl.webhook');
+Route::post('/ghl/webhook', [GhlWebhookController::class, 'handle'])
+    ->name('ghl.webhook')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 // Require Breeze Auth Routes (Login, Register, Password Reset, etc.)
 require __DIR__.'/auth.php';

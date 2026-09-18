@@ -47,7 +47,7 @@ class EstimatorController extends Controller
             return redirect()->back()->with('error', $result['message']);
         }
 
-        // Save quote locally
+        // 1. Save quote locally
         $this->estimatorService->saveQuote([
             'customer_name' => $request->input('customer_name'),
             'phone' => $request->input('phone'),
@@ -56,6 +56,25 @@ class EstimatorController extends Controller
             'total_estimate' => $result['total_estimate'],
         ]);
 
+        // 2. Push Opportunity to GoHighLevel (GHL) so it won't be empty
+        try {
+            $ghlResponse = $this->ghlService->createOpportunity([
+                'customer_name' => $request->input('customer_name'),
+                'total_amount' => $result['total_estimate'],
+            ]);
+
+            // Optional: If you need to store the GHL opportunity ID locally
+            if (!empty($ghlResponse['id']) && DB::getSchemaBuilder()->hasTable('opportunities')) {
+                DB::table('opportunities')
+                    ->where('name', 'LIKE', '%' . $request->input('customer_name') . '%')
+                    ->latest('id')
+                    ->update(['ghl_opportunity_id' => $ghlResponse['id']]);
+            }
+        } catch (\Exception $e) {
+            Log::error('GHL Push Opportunity Failed: ' . $e->getMessage());
+        }
+
+        // 3. Send SMS notification via GHL
         $phone = $request->input('phone');
         if ($phone) {
             try {
@@ -66,7 +85,7 @@ class EstimatorController extends Controller
             }
         }
 
-        // Send Email using the mail folder template (mail.quote-email)
+        // 4. Send Email using the mail folder template (mail.quote-email)
         $email = $request->input('customer_email');
         if ($email) {
             try {
@@ -88,7 +107,7 @@ class EstimatorController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
+        return redirect()->back()->with('success', 'Quote successfully generated, pushed to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
     }
 
     public function quotes()

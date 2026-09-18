@@ -43,6 +43,36 @@ class GoHighLevelService
         }
     }
 
+    public function getGhlPipelines(): array
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return [];
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/opportunities/pipelines", [
+                'locationId' => $locationId,
+            ]);
+
+            if ($response->successful()) {
+                return $response->json('pipelines') ?? [];
+            }
+
+            Log::error('GHL Fetch Pipelines Error: ' . $response->body());
+            return [];
+        } catch (\Exception $e) {
+            Log::error('GHL Fetch Pipelines Exception: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     public function createOpportunity(array $quoteData): ?array
     {
         $locationId = config('services.ghl.location_id');
@@ -53,18 +83,40 @@ class GoHighLevelService
         }
 
         try {
+            // GHL se automatically pipeline aur stage fetch kar rahe hain
+            $pipelines = $this->getGhlPipelines();
+            $pipelineId = null;
+            $stageId = null;
+
+            if (!empty($pipelines)) {
+                $firstPipeline = $pipelines[0];
+                $pipelineId = $firstPipeline['id'] ?? null;
+                
+                if (!empty($firstPipeline['stages'])) {
+                    $stageId = $firstPipeline['stages'][0]['id'] ?? null;
+                }
+            }
+
+            $payload = [
+                'locationId' => $locationId,
+                'name' => ($quoteData['customer_name'] ?? 'Customer') . ' - Quote',
+                'status' => 'open',
+                'monetaryValue' => $quoteData['total_amount'] ?? 0,
+            ];
+
+            if ($pipelineId) {
+                $payload['pipelineId'] = $pipelineId;
+            }
+            if ($stageId) {
+                $payload['stageId'] = $stageId;
+            }
+
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
                 'Version' => '2021-07-28',
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-            ])->post("{$this->baseUrl}/opportunities/", [
-                'locationId' => $locationId,
-                'name' => ($quoteData['customer_name'] ?? 'Customer') . ' - Quote',
-                'status' => 'open',
-                'monetaryValue' => $quoteData['total_amount'] ?? 0,
-                'pipelineType' => 'sales',
-            ]);
+            ])->post("{$this->baseUrl}/opportunities/", $payload);
 
             if ($response->successful()) {
                 return $response->json('opportunity');
@@ -156,5 +208,90 @@ class GoHighLevelService
             })->toArray();
         }
         return [];
+    }
+
+    // --- Sync Methods with Local Database Storage ---
+
+    public function syncOpportunities(): int
+    {
+        $opportunities = $this->getOpportunities();
+        $count = 0;
+
+        foreach ($opportunities as $opp) {
+            if (Schema::hasTable('opportunities')) {
+                DB::table('opportunities')->updateOrInsert(
+                    ['ghl_opportunity_id' => $opp['id'] ?? null],
+                    [
+                        'name' => $opp['name'] ?? 'Unnamed Opportunity',
+                        'stage' => $opp['stage'] ?? 'new',
+                        'status' => $opp['status'] ?? 'open',
+                        'value' => $opp['monetaryValue'] ?? ($opp['value'] ?? 0),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+            $count++;
+        }
+
+        return $count;
+    }
+
+    public function syncContacts(): int
+    {
+        $locationId = config('services.ghl.location_id');
+        $accessToken = config('services.ghl.api_key');
+
+        if (!$locationId || !$accessToken) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Version' => '2021-07-28',
+                'Accept' => 'application/json',
+            ])->get("{$this->baseUrl}/contacts/", [
+                'locationId' => $locationId,
+                'limit' => 50,
+            ]);
+
+            if ($response->successful()) {
+                $contacts = $response->json('contacts') ?? [];
+                $count = 0;
+
+                foreach ($contacts as $contact) {
+                    if (Schema::hasTable('contacts')) {
+                        DB::table('contacts')->updateOrInsert(
+                            ['email' => $contact['email'] ?? null],
+                            [
+                                'name' => trim(($contact['firstName'] ?? '') . ' ' . ($contact['lastName'] ?? '')),
+                                'phone' => $contact['phone'] ?? null,
+                                'updated_at' => now(),
+                                'created_at' => now(),
+                            ]
+                        );
+                    }
+                    $count++;
+                }
+
+                return $count;
+            }
+        } catch (\Exception $e) {
+            Log::error('GHL Sync Contacts Exception: ' . $e->getMessage());
+        }
+
+        return 0;
+    }
+
+    public function syncAppointments(): int
+    {
+        return 0;
+    }
+
+    public function syncProducts(): int
+    {
+        $products = $this->fetchProducts();
+        return count($products);
     }
 }

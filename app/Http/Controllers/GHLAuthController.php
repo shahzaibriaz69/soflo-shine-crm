@@ -23,6 +23,7 @@ class GHLAuthController extends Controller
 
     public function handleCallback(Request $request)
     {
+        Log::info('GHL Callback All Data: ', $request->all());
         $code = $request->get('code');
 
         if (!$code) {
@@ -30,25 +31,28 @@ class GHLAuthController extends Controller
         }
 
         try {
-            //Access Token exchange
+            // Access Token exchange
             $response = Http::asForm()->post('https://services.leadconnectorhq.com/oauth/token', [
                 'client_id'     => config('services.gohighlevel.client_id'),
                 'client_secret' => config('services.gohighlevel.client_secret'),
                 'grant_type'    => 'authorization_code',
                 'code'          => $code,
+                'redirect_uri'  => config('services.gohighlevel.redirect_uri'),
             ]);
 
             if ($response->successful()) {
                 $data = $response->json();
 
-                // Token DB Save/Update
+                // Token DB Save/Update in 'ghl_integrations' table
                 DB::table('ghl_integrations')->updateOrInsert(
-                    ['location_id' => $data['locationId']],
+                    ['location_id' => $data['locationId'] ?? 'default_location'],
                     [
+                        'user_id'       => auth()->id(),
                         'access_token'  => $data['access_token'],
-                        'refresh_token' => $data['refresh_token'],
-                        'expires_at'    => now()->addSeconds($data['expires_in']),
+                        'refresh_token' => $data['refresh_token'] ?? null,
+                        'expires_at'    => now()->addSeconds($data['expires_in'] ?? 86400),
                         'updated_at'    => now(),
+                        'created_at'    => now(),
                     ]
                 );
 

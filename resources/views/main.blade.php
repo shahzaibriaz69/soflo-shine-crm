@@ -109,18 +109,32 @@
                 <span>⚙️</span> Settings
             </a>
             <div class="px-3 mt-4 mb-4">
-                <!-- Status Badge -->
-                <div
-                    class="flex items-center space-x-2 px-3 py-2 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/50 rounded-lg mb-2">
-                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    <span>Connect GHL 🚀</span>
-                </div>
+                @php
+                    // Check if Private Integration API Key exists in .env / config
+                    $isGhlConnected = !empty(config('services.ghl.api_key')) || !empty(env('GHL_API_KEY'));
+                @endphp
 
-                <!-- Sync Button -->
-                <a href="{{ route('ghl.sync') }}"
-                    class="w-full flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-md transition-all duration-200">
-                    Sync GHL Data
-                </a>
+                @if($isGhlConnected)
+                    <!-- Connected Status Badge (Private Integration) -->
+                    <div
+                        class="flex items-center space-x-2 px-3 py-2 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/50 rounded-lg mb-2 shadow-inner">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-sm shadow-emerald-500"></span>
+                        <span class="font-medium">GHL Connected (Private) 🚀</span>
+                    </div>
+
+                    <!-- Sync Button (Active) -->
+                    <a href="{{ route('ghl.sync') }}"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition-all duration-200">
+                        <span>🔄</span> Sync GHL Data
+                    </a>
+                @else
+                    <!-- Missing Key Status Badge -->
+                    <div
+                        class="flex items-center space-x-2 px-3 py-2 text-xs text-amber-400 bg-amber-950/30 border border-amber-800/50 rounded-lg mb-2 shadow-inner">
+                        <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
+                        <span class="font-medium">GHL API Key Missing</span>
+                    </div>
+                @endif
             </div>
         </nav>
 
@@ -135,6 +149,7 @@
                 </div>
             </a>
         </div>
+
     </aside>
 
     <!-- Main Content -->
@@ -152,6 +167,13 @@
                     class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-5 rounded-lg text-sm text-decoration-none d-inline-block">
                     + New Quote
                 </a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit"
+                        class="px-3 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white border border-red-800/50 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+                        Logout
+                    </button>
+                </form>
             </div>
         </header>
 

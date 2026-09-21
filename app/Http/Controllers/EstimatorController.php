@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
+use App\Models\Package;
+use App\Models\Service;
 use App\Services\EstimatorService;
 use App\Services\GoHighLevelService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\Service;
-use App\Models\Package;
+use Illuminate\Support\Facades\Mail;
 
 class EstimatorController extends Controller
 {
     protected EstimatorService $estimatorService;
+
     protected GoHighLevelService $ghlService;
 
     public function __construct(EstimatorService $estimatorService, GoHighLevelService $ghlService)
@@ -25,6 +26,7 @@ class EstimatorController extends Controller
     public function index()
     {
         $products = $this->estimatorService->getAvailableProducts();
+
         return view('estimator', compact('products'));
     }
 
@@ -45,7 +47,7 @@ class EstimatorController extends Controller
             $request->input('condition')
         );
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return redirect()->back()->with('error', $result['message']);
         }
 
@@ -77,24 +79,24 @@ class EstimatorController extends Controller
                 'total_amount' => $result['total_estimate'],
             ]);
 
-            if (!empty($ghlResponse['id']) && DB::getSchemaBuilder()->hasTable('opportunities')) {
+            if (! empty($ghlResponse['id']) && DB::getSchemaBuilder()->hasTable('opportunities')) {
                 DB::table('opportunities')
-                    ->where('name', 'LIKE', '%' . $request->input('customer_name') . '%')
+                    ->where('name', 'LIKE', '%'.$request->input('customer_name').'%')
                     ->latest('id')
                     ->update(['ghl_opportunity_id' => $ghlResponse['id']]);
             }
         } catch (\Exception $e) {
-            Log::error('GHL Push Sync Failed: ' . $e->getMessage());
+            Log::error('GHL Push Sync Failed: '.$e->getMessage());
         }
 
         // 3. Send SMS notification via GHL
         $phone = $request->input('phone');
         if ($phone) {
             try {
-                $message = "Hi " . $request->input('customer_name') . ", your SoFlo Shine quote total is $" . $result['total_estimate'] . ". Thank you!";
+                $message = 'Hi '.$request->input('customer_name').', your SoFlo Shine quote total is $'.$result['total_estimate'].'. Thank you!';
                 $this->ghlService->sendSMS($phone, $message);
             } catch (\Exception $e) {
-                Log::error('GHL Quote SMS Notification Failed: ' . $e->getMessage());
+                Log::error('GHL Quote SMS Notification Failed: '.$e->getMessage());
             }
         }
 
@@ -108,7 +110,7 @@ class EstimatorController extends Controller
                     'size' => $request->input('size'),
                     'condition' => $request->input('condition'),
                     'totalAmount' => $result['total_estimate'],
-                    'approvalUrl' => url('/quotes/approve/' . uniqid())
+                    'approvalUrl' => url('/quotes/approve/'.uniqid()),
                 ];
 
                 Mail::send('mail.quote-email', $emailData, function ($message) use ($email) {
@@ -116,36 +118,32 @@ class EstimatorController extends Controller
                         ->subject('Your Official SoFlo Shine Detailing Quote');
                 });
             } catch (\Exception $e) {
-                Log::error('Quote Email Notification Failed: ' . $e->getMessage());
+                Log::error('Quote Email Notification Failed: '.$e->getMessage());
             }
         }
 
-        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, SMS & Email triggered! Total: $' . $result['total_estimate']);
+        return redirect()->back()->with('success', 'Quote successfully generated, synced to GHL, SMS & Email triggered! Total: $'.$result['total_estimate']);
     }
 
     public function quotes()
     {
         $products = $this->estimatorService->getAvailableProducts();
 
-        $quotes = DB::table('quotes')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return view('quotes', compact('quotes', 'products'));
+        return view('estimator', compact('products'));
     }
 
     // Delete quote with GHL Opportunity cleanup
     public function destroyQuote($id)
     {
         $quote = DB::table('quotes')->where('id', $id)->first();
-        
+
         if ($quote && DB::getSchemaBuilder()->hasColumn('opportunities', 'ghl_opportunity_id')) {
-            $opportunity = DB::table('opportunities')->where('name', 'LIKE', '%' . $quote->customer_name . '%')->first();
-            if ($opportunity && !empty($opportunity->ghl_opportunity_id)) {
+            $opportunity = DB::table('opportunities')->where('name', 'LIKE', '%'.$quote->customer_name.'%')->first();
+            if ($opportunity && ! empty($opportunity->ghl_opportunity_id)) {
                 try {
                     $this->ghlService->deleteOpportunity($opportunity->ghl_opportunity_id);
                 } catch (\Exception $e) {
-                    Log::error('GHL Delete Opportunity Sync Failed: ' . $e->getMessage());
+                    Log::error('GHL Delete Opportunity Sync Failed: '.$e->getMessage());
                 }
             }
         }
@@ -158,12 +156,14 @@ class EstimatorController extends Controller
     public function servicesIndex()
     {
         $products = Service::all();
+
         return view('services', compact('products'));
     }
 
     public function packagesIndex()
     {
         $packages = Package::all();
+
         return view('packages', compact('packages'));
     }
 

@@ -86,7 +86,7 @@
                 <span>👥</span> Customers
             </a>
             <a href="{{ route('quotes.index') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg {{ request()->routeIs('quotes.*', 'estimator.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }} transition">
                 <span>📝</span> Quotes
             </a>
 
@@ -171,7 +171,7 @@
             </div>
             <div class="flex items-center gap-4">
                 <p class="text-sm text-slate-400">Thu, Aug 20, 2026</p>
-                <a href="{{ route('estimator.index') }}"
+                <a href="{{ route('quotes.index') }}"
                     class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-5 rounded-lg text-sm text-decoration-none d-inline-block">
                     + New Quote
                 </a>

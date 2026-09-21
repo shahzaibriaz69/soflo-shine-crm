@@ -1,9 +1,6 @@
 @extends('main')
 
 @section('content')
-<!-- Bootstrap 5 CSS CDN (Temporary fix for styling) -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
         <div class="max-w-7xl mx-auto">
             <form action="{{ route('estimator.store') }}" method="POST" id="quoteForm">
                 @csrf
@@ -209,7 +206,8 @@
                 updateEstimates();
             });
         </script>
-    <form action="{{ route('estimator.store') }}" method="POST" id="quoteForm">
+{{--
+    <form action="{{ route('estimator.store') }}" method="POST" id="legacyQuoteForm">
         @csrf
         
         <!-- Top Bar with Actions -->
@@ -496,4 +494,5 @@
         conditionSelect.addEventListener('change', updateEstimates);
     });
 </script>
+--}}
 @endsection

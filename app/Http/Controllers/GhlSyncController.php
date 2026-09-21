@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Request;
 use App\Services\GoHighLevelService;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class GhlSyncController extends Controller
@@ -22,25 +22,20 @@ class GhlSyncController extends Controller
     public function sync()
     {
         try {
-            // 1. Sync Opportunities domain
-            $syncedOpportunities = $this->ghlService->syncOpportunities();
+            $synced = $this->ghlService->syncAll();
 
-            // 2. Sync Contacts domain
-            $syncedContacts = $this->ghlService->syncContacts();
+            if ($synced['errors'] !== []) {
+                return redirect()->back()->with(
+                    'error',
+                    'GHL sync is incomplete. Saved '.$synced['opportunities'].' opportunities, '.$synced['contacts'].' contacts, '.$synced['users'].' team members, '.$synced['appointments'].' appointments, and '.$synced['products'].' products. Check the GHL token permissions for: '.implode(', ', array_keys($synced['errors'])).'.',
+                );
+            }
 
-            // 3. Sync Team Members / Users domain
-            $syncedUsers = $this->ghlService->syncUsers();
-
-            // 4. Sync Appointments domain (Calendars)
-            $syncedAppointments = $this->ghlService->syncAppointments();
-
-            // 5. Sync Products domain (Catalog)
-            $syncedProducts = $this->ghlService->syncProducts();
-Log::info('hshghsgh');
-            return redirect()->back()->with('success', "Successfully synced {$syncedOpportunities} opportunities, {$syncedContacts} contacts, {$syncedUsers} team members, {$syncedAppointments} appointments, and {$syncedProducts} products from GoHighLevel!");
+            return redirect()->back()->with('success', "GHL sync complete: {$synced['opportunities']} opportunities, {$synced['contacts']} contacts, {$synced['users']} team members, {$synced['appointments']} appointments, and {$synced['products']} products saved to the database.");
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return redirect()->back()->with('error', 'Sync failed: ' . $e->getMessage());
+            Log::error('GHL sync failed: '.$e->getMessage());
+
+            return redirect()->back()->with('error', 'GHL sync failed. Check your token, location ID, and GHL permissions, then try again.');
         }
     }
 
@@ -83,7 +78,7 @@ Log::info('hshghsgh');
                     DB::table('contacts')->updateOrInsert(
                         ['email' => $email],
                         [
-                            'name' => trim(($contact['firstName'] ?? '') . ' ' . ($contact['lastName'] ?? '')),
+                            'name' => trim(($contact['firstName'] ?? '').' '.($contact['lastName'] ?? '')),
                             'phone' => $contact['phone'] ?? null,
                             'updated_at' => now(),
                         ]
@@ -96,13 +91,13 @@ Log::info('hshghsgh');
                 break;
 
             default:
-                Log::info('Unhandled GHL Webhook Event: ' . $event);
+                Log::info('Unhandled GHL Webhook Event: '.$event);
                 break;
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Webhook received and processed successfully.'
+            'message' => 'Webhook received and processed successfully.',
         ], 200);
     }
 
@@ -111,14 +106,14 @@ Log::info('hshghsgh');
         $apiKey = config('services.ghl.api_key');
         $locationId = config('services.ghl.location_id');
 
-        if (!$apiKey || !$locationId) {
+        if (! $apiKey || ! $locationId) {
             return response()->json(['success' => false, 'error' => 'GHL API Key or Location ID is missing in configuration.']);
         }
 
         $response = Http::withToken($apiKey)
             ->withHeaders([
                 'Version' => '2021-07-28',
-                'Content-Type' => 'application/json'
+                'Content-Type' => 'application/json',
             ])
             ->post('https://services.leadconnectorhq.com/users/', [
                 'firstName' => $staffMember->first_name ?? explode(' ', $staffMember->name)[0] ?? '',
@@ -126,14 +121,15 @@ Log::info('hshghsgh');
                 'email' => $staffMember->email,
                 'phone' => $staffMember->phone ?? null,
                 'role' => $staffMember->role ?? 'account-user',
-                'locationId' => $locationId
+                'locationId' => $locationId,
             ]);
 
         if ($response->successful()) {
             return response()->json(['success' => true, 'data' => $response->json()]);
         }
 
-        Log::error('GHL Sync Staff Error: ' . $response->body());
+        Log::error('GHL Sync Staff Error: '.$response->body());
+
         return response()->json(['success' => false, 'error' => $response->body()]);
     }
 }

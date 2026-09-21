@@ -151,18 +151,6 @@
         </button>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 flex items-center gap-3 p-4 bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-sm rounded-xl">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>{{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 flex items-center gap-3 p-4 bg-rose-950/50 border border-rose-800 text-rose-300 text-sm rounded-xl">
-            <span class="w-2 h-2 rounded-full bg-rose-400"></span>{{ session('error') }}
-        </div>
-    @endif
-
     <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div class="px-6 py-5 border-b border-slate-800">
             <h2 class="text-base font-bold text-white">Service catalog</h2>

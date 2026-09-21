@@ -19,13 +19,6 @@
                     </div>
                 </div>
 
-                @if(session('success'))
-                    <div class="mb-6 p-4 bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-sm rounded-xl">{{ session('success') }}</div>
-                @endif
-                @if(session('error'))
-                    <div class="mb-6 p-4 bg-rose-950/50 border border-rose-800 text-rose-300 text-sm rounded-xl">{{ session('error') }}</div>
-                @endif
-
                 <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
                     <div class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden">
                         <div class="px-6 py-4 border-b border-slate-800 bg-slate-800/30">

@@ -62,7 +62,7 @@
                             <span class="text-slate-500 uppercase block font-semibold text-[10px]">GHL Sync ID</span>
                             <span class="text-slate-300 font-mono">{{ $member->ghl_user_id ?? 'Not Synced' }}</span>
                         </div>
-                        <form action="{{ route('team.destroy', $member->id) }}" method="POST" onsubmit="return confirm('Kya aap waqai is employee ko delete karna chahte hain?');">
+                        <form action="{{ route('team.destroy', $member->id) }}" method="POST" onsubmit="return confirm('Do you really want to delete this employee?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="text-red-400 hover:text-red-300 font-medium transition">Delete</button>

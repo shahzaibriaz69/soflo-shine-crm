@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Contacts;
+use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\DB;
@@ -25,16 +27,16 @@ class GoHighLevelService
      */
     public function syncAll(): array
     {
-        if (! $this->isConfigured()) {
+        if (!$this->isConfigured()) {
             throw new \RuntimeException('GHL_API_KEY or GHL_LOCATION_ID is missing from .env.');
         }
 
         $syncers = [
-            'opportunities' => fn (): int => $this->syncOpportunitiesFromApi(),
-            'contacts' => fn (): int => $this->syncContactsFromApi(),
-            'users' => fn (): int => $this->syncUsersFromApi(),
-            'appointments' => fn (): int => $this->syncAppointmentsFromApi(),
-            'products' => fn (): int => $this->syncProductsFromApi(),
+            'opportunities' => fn(): int => $this->syncOpportunitiesFromApi(),
+            'contacts' => fn(): int => $this->syncContactsFromApi(),
+            'users' => fn(): int => $this->syncUsersFromApi(),
+            'appointments' => fn(): int => $this->syncAppointmentsFromApi(),
+            'products' => fn(): int => $this->syncProductsFromApi(),
         ];
         $result = ['errors' => []];
 
@@ -42,7 +44,7 @@ class GoHighLevelService
             try {
                 $result[$domain] = $syncer();
             } catch (\Throwable $exception) {
-                Log::warning("GHL {$domain} sync failed: ".$exception->getMessage());
+                Log::warning("GHL {$domain} sync failed: " . $exception->getMessage());
                 $result[$domain] = 0;
                 $result['errors'][$domain] = $exception->getMessage();
             }
@@ -60,24 +62,45 @@ class GoHighLevelService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function getCollection(string $endpoint, string $key): array
+    private function getCollection(string $endpoint, string $key, array $query = []): array
     {
-        $locationParameter = $endpoint === '/opportunities/search' ? 'location_id' : 'locationId';
-        $response = $this->client()->get("{$this->baseUrl}{$endpoint}", [
-            $locationParameter => config('services.ghl.location_id'),
+        $query = array_merge([
+            'locationId' => config('services.ghl.location_id'),
             'limit' => 100,
-        ]);
+        ], $query);
 
-        if (! $response->successful()) {
-            throw new \RuntimeException("GHL request to {$endpoint} failed ({$response->status()}).");
+        $response = $this->client()->get("{$this->baseUrl}{$endpoint}", $query);
+
+        if (!$response->successful()) {
+            Log::error('GHL API Request Failed', [
+                'endpoint' => $endpoint,
+                'query' => $query,
+                'status' => $response->status(),
+                'response' => $response->body(),
+            ]);
+
+            throw new \RuntimeException(
+                "GHL request to {$endpoint} failed ({$response->status()}): " . $response->body()
+            );
         }
 
-        return $response->json($key) ?? [];
+        return $response->json($key) ?? $response->json() ?? [];
     }
 
     private function syncOpportunitiesFromApi(): int
     {
-        $opportunities = $this->getCollection('/opportunities/search', 'opportunities');
+        // GHL opportunities search requires 'location_id' with underscore
+        $locationId = config('services.ghl.location_id');
+        $response = $this->client()->get("{$this->baseUrl}/opportunities/search", [
+            'location_id' => $locationId,
+            'limit' => 100,
+        ]);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("GHL opportunities fetch failed: " . $response->body());
+        }
+
+        $opportunities = $response->json('opportunities') ?? [];
 
         foreach ($opportunities as $opportunity) {
             $values = [
@@ -106,7 +129,7 @@ class GoHighLevelService
             DB::table('contacts')->updateOrInsert(
                 ['ghl_contact_id' => $contact['id']],
                 [
-                    'name' => trim(($contact['firstName'] ?? '').' '.($contact['lastName'] ?? '')) ?: 'Unnamed Contact',
+                    'name' => trim(($contact['firstName'] ?? '') . ' ' . ($contact['lastName'] ?? '')) ?: 'Unnamed Contact',
                     'email' => $contact['email'] ?? null,
                     'phone' => $contact['phone'] ?? null,
                     'dnd' => (bool) ($contact['dnd'] ?? false),
@@ -122,58 +145,135 @@ class GoHighLevelService
 
     private function syncUsersFromApi(): int
     {
-        $users = $this->getCollection('/users/', 'users');
+        $locationId = config('services.ghl.location_id');
+        
+        // Users endpoint can accept locationId or return location users
+        $response = $this->client()->get("{$this->baseUrl}/users/", [
+            'locationId' => $locationId,
+        ]);
 
+        if (!$response->successful()) {
+            Log::warning("GHL users fetch with locationId failed, trying without params: " . $response->body());
+            $response = $this->client()->get("{$this->baseUrl}/users/");
+        }
+
+        if (!$response->successful()) {
+            throw new \RuntimeException("GHL users fetch failed: " . $response->body());
+        }
+
+        $users = $response->json('users') ?? $response->json() ?? [];
+
+        $saved = 0;
         foreach ($users as $user) {
             if (empty($user['email'])) {
                 continue;
             }
 
+            // Check if ghl_user_id column exists or fallback to email matching
+            $matchCriteria = Schema::hasColumn('users', 'ghl_user_id') 
+                ? ['ghl_user_id' => $user['id'] ?? $user['_id'] ?? null] 
+                : ['email' => $user['email']];
+
             User::updateOrCreate(
-                ['ghl_user_id' => $user['id']],
+                $matchCriteria,
                 [
-                    'name' => trim(($user['firstName'] ?? '').' '.($user['lastName'] ?? '')) ?: $user['email'],
+                    'name' => trim(($user['firstName'] ?? '') . ' ' . ($user['lastName'] ?? '')) ?: $user['email'],
                     'email' => $user['email'],
                     'phone' => $user['phone'] ?? null,
                     'role' => $user['role'] ?? 'account-user',
                     'password' => bcrypt(str()->random(40)),
                 ],
             );
+            $saved++;
         }
 
-        return count($users);
+        return $saved;
     }
 
     private function syncAppointmentsFromApi(): int
     {
-        $appointments = $this->getCollection('/calendars/events', 'events');
+        $locationId = config('services.ghl.location_id');
+        $contacts = Contacts::get(['ghl_contact_id']);
 
+        if ($contacts->isEmpty()) {
+            return 0;
+        }
+
+        $appointments = [];
+
+        foreach ($contacts as $contact) {
+            if (empty($contact->ghl_contact_id)) {
+                continue;
+            }
+
+            try {
+                $events = $this->getCollection(
+                    '/contacts/' . $contact->ghl_contact_id . '/appointments',
+                    'appointments',
+                    ['showDrafted' => true]
+                );
+
+                if (!empty($events)) {
+                    $appointments = array_merge($appointments, $events);
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        $saved = 0;
         foreach ($appointments as $appointment) {
+            if (empty($appointment['id'])) {
+                continue;
+            }
+
             DB::table('appointments')->updateOrInsert(
                 ['ghl_appointment_id' => $appointment['id']],
                 [
-                    'calendar_id' => $appointment['calendarId'] ?? null,
-                    'contact_id' => $appointment['contactId'] ?? null,
-                    'title' => $appointment['title'] ?? $appointment['appointmentTitle'] ?? null,
-                    'start_time' => $appointment['startTime'] ?? null,
-                    'end_time' => $appointment['endTime'] ?? null,
-                    'status' => $appointment['appointmentStatus'] ?? 'booked',
+                    'calendar_id' => $appointment['calendarId'] ?? $appointment['calendar_id'] ?? null,
+                    'contact_id' => $appointment['contactId'] ?? $appointment['contact_id'] ?? null,
+                    'title' => $appointment['title'] ?? $appointment['appointmentTitle'] ?? 'GHL Appointment',
+                    'start_time' => $appointment['startTime'] ?? $appointment['start_time'] ?? null,
+                    'end_time' => $appointment['endTime'] ?? $appointment['end_time'] ?? null,
+                    'status' => $appointment['appointmentStatus'] ?? $appointment['status'] ?? 'booked',
                     'updated_at' => now(),
                     'created_at' => now(),
-                ],
+                ]
             );
+
+            $saved++;
         }
 
-        return count($appointments);
+        return $saved;
     }
 
     private function syncProductsFromApi(): int
     {
-        $products = $this->getCollection('/products/', 'products');
+        $response = $this->client()->get("{$this->baseUrl}/products/", [
+            'locationId' => config('services.ghl.location_id'),
+        ]);
+
+        if (!$response->successful()) {
+            // Fallback if endpoint differs
+            $response = $this->client()->get("{$this->baseUrl}/products");
+        }
+
+        if (!$response->successful()) {
+            Log::warning("GHL products fetch failed: " . $response->body());
+            return 0;
+        }
+
+        $products = $response->json('products') ?? $response->json() ?? [];
+        $saved = 0;
 
         foreach ($products as $product) {
+            $productId = $product['id'] ?? $product['_id'] ?? null;
+            if (!$productId) {
+                continue;
+            }
+
             DB::table('products')->updateOrInsert(
-                ['ghl_product_id' => $product['id']],
+                ['ghl_product_id' => $productId],
                 [
                     'name' => $product['name'] ?? 'Unnamed Product',
                     'description' => $product['description'] ?? null,
@@ -183,9 +283,10 @@ class GoHighLevelService
                     'created_at' => now(),
                 ],
             );
+            $saved++;
         }
 
-        return count($products);
+        return $saved;
     }
 
     public function getOpportunities(?string $locationId = null, ?string $accessToken = null): array
@@ -193,16 +294,12 @@ class GoHighLevelService
         $locationId = $locationId ?? config('services.ghl.location_id');
         $accessToken = $accessToken ?? config('services.ghl.api_key');
 
-        if (! $locationId || ! $accessToken) {
+        if (!$locationId || !$accessToken) {
             return $this->getOpportunitiesByType('sales');
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->get("{$this->baseUrl}/opportunities/search", [
+            $response = $this->client()->get("{$this->baseUrl}/opportunities/search", [
                 'location_id' => $locationId,
                 'limit' => 20,
             ]);
@@ -211,13 +308,8 @@ class GoHighLevelService
                 return $response->json('opportunities') ?? [];
             }
 
-            Log::error('GHL API Response Error: '.$response->body());
-
             return $this->getOpportunitiesByType('sales');
-
         } catch (\Exception $e) {
-            Log::error('GHL API Exception: '.$e->getMessage());
-
             return $this->getOpportunitiesByType('sales');
         }
     }
@@ -227,16 +319,12 @@ class GoHighLevelService
         $locationId = config('services.ghl.location_id');
         $accessToken = config('services.ghl.api_key');
 
-        if (! $locationId || ! $accessToken) {
+        if (!$locationId || !$accessToken) {
             return [];
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->get("{$this->baseUrl}/opportunities/pipelines", [
+            $response = $this->client()->get("{$this->baseUrl}/opportunities/pipelines", [
                 'locationId' => $locationId,
             ]);
 
@@ -244,12 +332,8 @@ class GoHighLevelService
                 return $response->json('pipelines') ?? [];
             }
 
-            Log::error('GHL Fetch Pipelines Error: '.$response->body());
-
             return [];
         } catch (\Exception $e) {
-            Log::error('GHL Fetch Pipelines Exception: '.$e->getMessage());
-
             return [];
         }
     }
@@ -259,7 +343,7 @@ class GoHighLevelService
         $locationId = config('services.ghl.location_id');
         $accessToken = config('services.ghl.api_key');
 
-        if (! $locationId || ! $accessToken) {
+        if (!$locationId || !$accessToken) {
             return null;
         }
 
@@ -268,47 +352,42 @@ class GoHighLevelService
             $pipelineId = null;
             $stageId = null;
 
-            if (! empty($pipelines)) {
+            if (!empty($pipelines)) {
                 $firstPipeline = $pipelines[0];
                 $pipelineId = $firstPipeline['id'] ?? null;
 
-                if (! empty($firstPipeline['stages'])) {
+                if (!empty($firstPipeline['stages'])) {
                     $stageId = $firstPipeline['stages'][0]['id'] ?? null;
                 }
             }
 
+            $contactId = $quoteData['contact_id'] ?? $quoteData['ghl_contact_id'] ?? null;
+
+            if (!$contactId || !$pipelineId) {
+                return null;
+            }
+
             $payload = [
                 'locationId' => $locationId,
-                'name' => ($quoteData['customer_name'] ?? 'Customer').' - Quote',
+                'contactId' => $contactId,
+                'pipelineId' => $pipelineId,
+                'name' => ($quoteData['customer_name'] ?? 'Customer') . ' - Quote',
                 'status' => 'open',
                 'monetaryValue' => $quoteData['total_amount'] ?? 0,
             ];
 
-            if ($pipelineId) {
-                $payload['pipelineId'] = $pipelineId;
-            }
             if ($stageId) {
-                $payload['stageId'] = $stageId;
+                $payload['pipelineStageId'] = $stageId;
             }
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])->post("{$this->baseUrl}/opportunities/", $payload);
+            $response = $this->client()->withHeaders(['Content-Type' => 'application/json'])->post("{$this->baseUrl}/opportunities/", $payload);
 
             if ($response->successful()) {
                 return $response->json('opportunity');
             }
 
-            Log::error('GHL Create Opportunity Error: '.$response->body());
-
             return null;
-
         } catch (\Exception $e) {
-            Log::error('GHL Create Opportunity Exception: '.$e->getMessage());
-
             return null;
         }
     }
@@ -316,28 +395,19 @@ class GoHighLevelService
     public function updateOpportunity(string $ghlId, array $data): ?array
     {
         $accessToken = config('services.ghl.api_key');
-        if (! $accessToken || ! $ghlId) {
+        if (!$accessToken || !$ghlId) {
             return null;
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])->put("{$this->baseUrl}/opportunities/{$ghlId}", $data);
+            $response = $this->client()->withHeaders(['Content-Type' => 'application/json'])->put("{$this->baseUrl}/opportunities/{$ghlId}", $data);
 
             if ($response->successful()) {
                 return $response->json('opportunity');
             }
 
-            Log::error('GHL Update Opportunity Error: '.$response->body());
-
             return null;
         } catch (\Exception $e) {
-            Log::error('GHL Update Opportunity Exception: '.$e->getMessage());
-
             return null;
         }
     }
@@ -345,21 +415,15 @@ class GoHighLevelService
     public function deleteOpportunity(string $ghlId): bool
     {
         $accessToken = config('services.ghl.api_key');
-        if (! $accessToken || ! $ghlId) {
+        if (!$accessToken || !$ghlId) {
             return false;
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->delete("{$this->baseUrl}/opportunities/{$ghlId}");
+            $response = $this->client()->delete("{$this->baseUrl}/opportunities/{$ghlId}");
 
             return $response->successful();
         } catch (\Exception $e) {
-            Log::error('GHL Delete Opportunity Exception: '.$e->getMessage());
-
             return false;
         }
     }
@@ -369,29 +433,20 @@ class GoHighLevelService
         $locationId = config('services.ghl.location_id');
         $accessToken = config('services.ghl.api_key');
 
-        if (! $locationId || ! $accessToken) {
+        if (!$locationId || !$accessToken) {
             return null;
         }
 
         try {
             $payload = array_merge(['locationId' => $locationId], $contactData);
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])->post("{$this->baseUrl}/contacts/", $payload);
+            $response = $this->client()->withHeaders(['Content-Type' => 'application/json'])->post("{$this->baseUrl}/contacts/", $payload);
 
             if ($response->successful()) {
                 return $response->json('contact');
             }
 
-            Log::error('GHL Create Contact Error: '.$response->body());
-
             return null;
         } catch (\Exception $e) {
-            Log::error('GHL Create Contact Exception: '.$e->getMessage());
-
             return null;
         }
     }
@@ -401,16 +456,12 @@ class GoHighLevelService
         $locationId = config('services.ghl.location_id');
         $accessToken = config('services.ghl.api_key');
 
-        if (! $locationId || ! $accessToken) {
+        if (!$locationId || !$accessToken) {
             return false;
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->post("{$this->baseUrl}/conversations/messages", [
+            $response = $this->client()->post("{$this->baseUrl}/conversations/messages", [
                 'type' => 'SMS',
                 'locationId' => $locationId,
                 'phone' => $phone,
@@ -419,8 +470,6 @@ class GoHighLevelService
 
             return $response->successful();
         } catch (\Exception $e) {
-            Log::error('GHL SMS Exception: '.$e->getMessage());
-
             return false;
         }
     }
@@ -450,9 +499,9 @@ class GoHighLevelService
                     'pipeline_type' => $item->pipeline_type ?? $type,
                     'hand_off' => (bool) ($item->hand_off ?? false),
                     'contact' => [
-                        'id' => 'ghl_cnt_00'.$item->id,
+                        'id' => 'ghl_cnt_00' . $item->id,
                         'name' => $item->name,
-                        'email' => strtolower(str_replace(' ', '.', $item->name)).'@example.com',
+                        'email' => strtolower(str_replace(' ', '.', $item->name)) . '@example.com',
                     ],
                 ];
             })->toArray();
@@ -477,135 +526,28 @@ class GoHighLevelService
         return [];
     }
 
-    // --- Sync Methods with Local Database Storage ---
-
     public function syncOpportunities(): int
     {
-        $opportunities = $this->getOpportunities();
-        $count = 0;
-
-        foreach ($opportunities as $opp) {
-            if (Schema::hasTable('opportunities')) {
-                DB::table('opportunities')->updateOrInsert(
-                    ['ghl_opportunity_id' => $opp['id'] ?? null],
-                    [
-                        'name' => $opp['name'] ?? 'Unnamed Opportunity',
-                        'stage' => $opp['stage'] ?? 'new',
-                        'status' => $opp['status'] ?? 'open',
-                        'value' => $opp['monetaryValue'] ?? ($opp['value'] ?? 0),
-                        'updated_at' => now(),
-                        'created_at' => now(),
-                    ]
-                );
-            }
-            $count++;
-        }
-
-        return $count;
+        return $this->syncOpportunitiesFromApi();
     }
 
     public function syncContacts(): int
     {
-        $locationId = config('services.ghl.location_id');
-        $accessToken = config('services.ghl.api_key');
-
-        if (! $locationId || ! $accessToken) {
-            return 0;
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->get("{$this->baseUrl}/contacts/", [
-                'locationId' => $locationId,
-                'limit' => 50,
-            ]);
-
-            if ($response->successful()) {
-                $contacts = $response->json('contacts') ?? [];
-                $count = 0;
-
-                foreach ($contacts as $contact) {
-                    if (Schema::hasTable('contacts')) {
-                        DB::table('contacts')->updateOrInsert(
-                            ['email' => $contact['email'] ?? null],
-                            [
-                                'name' => trim(($contact['firstName'] ?? '').' '.($contact['lastName'] ?? '')),
-                                'phone' => $contact['phone'] ?? null,
-                                'updated_at' => now(),
-                                'created_at' => now(),
-                            ]
-                        );
-                    }
-                    $count++;
-                }
-
-                return $count;
-            }
-        } catch (\Exception $e) {
-            Log::error('GHL Sync Contacts Exception: '.$e->getMessage());
-        }
-
-        return 0;
+        return $this->syncContactsFromApi();
     }
 
     public function syncUsers(): int
     {
-        $locationId = config('services.ghl.location_id');
-        $accessToken = config('services.ghl.api_key');
-
-        if (! $locationId || ! $accessToken) {
-            return 0;
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'Version' => '2021-07-28',
-                'Accept' => 'application/json',
-            ])->get("{$this->baseUrl}/users/", [
-                'locationId' => $locationId,
-            ]);
-
-            if ($response->successful()) {
-                $users = $response->json('users') ?? [];
-                $count = 0;
-
-                foreach ($users as $user) {
-                    if (Schema::hasTable('users')) {
-                        User::updateOrCreate(
-                            ['email' => $user['email'] ?? null],
-                            [
-                                'name' => trim(($user['firstName'] ?? '').' '.($user['lastName'] ?? '')),
-                                'phone' => $user['phone'] ?? null,
-                                'role' => $user['role'] ?? 'account-user',
-                                'password' => bcrypt('password123'),
-                            ]
-                        );
-                        $count++;
-                    }
-                }
-
-                return $count;
-            }
-        } catch (\Exception $e) {
-            Log::error('GHL Sync Users Exception: '.$e->getMessage());
-        }
-
-        return 0;
+        return $this->syncUsersFromApi();
     }
 
     public function syncAppointments(): int
     {
-        return 0;
+        return $this->syncAppointmentsFromApi();
     }
 
     public function syncProducts(): int
     {
-        $products = $this->fetchProducts();
-
-        return count($products);
+        return $this->syncProductsFromApi();
     }
 }

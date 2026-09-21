@@ -93,6 +93,11 @@ class TeamController extends Controller
 
     public function destroy($id)
     {
+        // Prevent deleting the currently logged-in user/admin
+        if (auth()->id() == $id) {
+            return redirect()->back()->with('error', 'You cannot delete your own active account!');
+        }
+
         $user = User::findOrFail($id);
         $user->delete();
 
